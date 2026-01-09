@@ -12,7 +12,7 @@ export function useTimerEngine() {
     const oscillatorRef = useRef(null);
 
     // Initialize Audio Logic (Must be called on user interaction)
-    const initAudio = () => {
+    const initAudio = useCallback(() => {
         if (!audioContextRef.current) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (AudioContext) {
@@ -23,9 +23,9 @@ export function useTimerEngine() {
         if (audioContextRef.current?.state === 'suspended') {
             audioContextRef.current.resume();
         }
-    };
+    }, []);
 
-    const playBeep = () => {
+    const playBeep = useCallback(() => {
         if (!audioContextRef.current) return;
 
         try {
@@ -48,26 +48,55 @@ export function useTimerEngine() {
         } catch (e) {
             console.error("Audio Play Error", e);
         }
-    };
+    }, []);
 
-    const notifyUser = () => {
+    const notifyUser = useCallback(() => {
         // 1. Audio
         playBeep();
 
         // 2. Browser Notification
         if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("Tiempo Terminado", {
-                body: "¡Tu descanso ha terminado! A entrenar.",
-                icon: "/icon.png", // Make sure this exists later
-                vibrate: [200, 100, 200]
-            });
+            try {
+               new Notification("Tiempo Terminado", {
+                    body: "¡Tu descanso ha terminado! A entrenar.",
+                    icon: "/icon.png", 
+                    vibrate: [200, 100, 200],
+                    requireInteraction: true
+                });
+            } catch (e) {
+                console.error("Notification Error", e);
+            }
         }
-    };
+    }, [playBeep]);
+
+    const workerRef = useRef(null);
+
+    // Initialize Worker
+    useEffect(() => {
+        workerRef.current = new Worker('/timer-worker.js');
+        
+        workerRef.current.onmessage = (e) => {
+            const { type, timeLeft: workerTimeLeft } = e.data;
+            
+            if (type === 'TICK') {
+                setTimeLeft(workerTimeLeft);
+            } else if (type === 'DONE') {
+                setTimeLeft(0);
+                setIsRunning(false);
+                setTargetTime(null);
+                releaseWakeLock();
+                notifyUser();
+            }
+        };
+
+        return () => {
+            if (workerRef.current) workerRef.current.terminate();
+        };
+    }, [releaseWakeLock, notifyUser]);
 
     const startTimer = useCallback((seconds) => {
         initAudio();
 
-        // Request Notification permission if needed
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
         }
@@ -79,6 +108,12 @@ export function useTimerEngine() {
         setTargetTime(newTarget);
         setIsRunning(true);
         requestWakeLock();
+
+        // Start Worker
+        if (workerRef.current) {
+            workerRef.current.postMessage({ action: 'START', payload: newTarget });
+        }
+
     }, [requestWakeLock]);
 
     const stopTimer = useCallback(() => {
@@ -86,43 +121,41 @@ export function useTimerEngine() {
         setTargetTime(null);
         setTimeLeft(0);
         releaseWakeLock();
+        // Stop Worker
+         if (workerRef.current) {
+            workerRef.current.postMessage({ action: 'STOP' });
+        }
     }, [releaseWakeLock]);
 
     const addTime = useCallback((seconds) => {
+        // Complex logic: need to get current target from state which might be stale in a callback?
+        // Fortunately setTargetTime supports functional update. But we need the value for the worker.
+        // We can use a ref to track currentTargetTime to avoid dependency loops or just use the state variable.
+        // But addTime depends on targetTime.
+        
+        let newTarget;
         if (isRunning && targetTime) {
-            setTargetTime(prev => prev + (seconds * 1000));
+            newTarget = targetTime + (seconds * 1000);
+            setTargetTime(newTarget);
         } else {
-            startTimer(seconds);
-        }
-    }, [isRunning, targetTime, startTimer]);
-
-    // The Loop
-    useEffect(() => {
-        if (!isRunning || !targetTime) {
-            setTimeLeft(0);
-            return;
-        }
-
-        const checkTime = () => {
             const now = Date.now();
-            const remaining = targetTime - now;
-
-            if (remaining <= 0) {
-                setTimeLeft(0);
-                setIsRunning(false);
-                setTargetTime(null);
-                releaseWakeLock();
-                notifyUser();
-            } else {
-                setTimeLeft(remaining);
-                requestAnimationFrame(checkTime);
+            newTarget = now + (seconds * 1000);
+            setTargetTime(newTarget);
+            setIsRunning(true);
+            requestWakeLock();
+            initAudio(); // Ensure audio context is ready
+             if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
             }
-        };
+        }
 
-        const animFrame = requestAnimationFrame(checkTime);
-        return () => cancelAnimationFrame(animFrame);
-    }, [isRunning, targetTime, releaseWakeLock]);
-
+        if (workerRef.current) {
+            workerRef.current.postMessage({ action: 'START', payload: newTarget });
+        }
+    }, [isRunning, targetTime, requestWakeLock, startTimer]); // Added startTimer for safety but logic is inline now to ensure variable access
+    
+    // Remove the old useEffect loop
+    
     // Formatter
     const formattedTime = () => {
         const totalSeconds = Math.ceil(timeLeft / 1000);
