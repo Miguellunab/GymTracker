@@ -31,8 +31,11 @@ export default function TimerWidget() {
             </div>
 
             {/* Controls */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-2">
                 {/* Quick Add Buttons */}
+                <BigButton onClick={() => addTime(10)} variant="neutral">
+                    <Plus className="w-5 h-5 mr-1 text-emerald-500" /> 10s
+                </BigButton>
                 <BigButton onClick={() => addTime(30)} variant="neutral">
                     <Plus className="w-5 h-5 mr-1 text-emerald-500" /> 30s
                 </BigButton>
