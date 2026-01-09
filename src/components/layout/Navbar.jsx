@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, History, BarChart2 } from "lucide-react";
+import { Dumbbell, Home, ScrollText, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-    { href: "/workout", label: "Workout", icon: Dumbbell },
-    { href: "/history", label: "History", icon: History },
-    { href: "/stats", label: "Stats", icon: BarChart2 },
+    { href: "/", label: "Inicio", icon: Home },
+    { href: "/routines", label: "Rutinas", icon: Dumbbell },
+    { href: "/history", label: "Historial", icon: ScrollText },
+    { href: "/profile", label: "Perfil", icon: User },
 ];
 
 export function Navbar() {
@@ -25,7 +26,7 @@ export function Navbar() {
                         className="flex flex-col items-center justify-center gap-1 text-zinc-500 hover:text-emerald-500 transition-colors"
                     >
                         <item.icon className={cn("w-6 h-6", isActive && "text-emerald-500")} />
-                        <span className={cn("text-xs font-medium", isActive && "text-white")}>
+                        <span className={cn("text-[10px] font-medium", isActive && "text-white")}>
                             {item.label}
                         </span>
                     </Link>                );

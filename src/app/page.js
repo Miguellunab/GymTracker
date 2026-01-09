@@ -1,18 +1,95 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { format, differenceInDays } from 'date-fns';
+import { enUS } from 'date-fns/locale'; // MOCK_ROUTINES keys are in English
+import DashboardCalendar from '@/components/dashboard/DashboardCalendar';
+import DayRoutineCard from '@/components/dashboard/DayRoutineCard';
+import { MOCK_ROUTINES } from '@/lib/data';
+import { History, TrendingUp, Scale, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export default function HomePage() {
-  const router = useRouter();
+  const [date, setDate] = useState(new Date());
+  const [showWeightWarning, setShowWeightWarning] = useState(false);
+
+  // Get day string for mock lookup (Monday, Tuesday...)
+  // Note: MOCK_ROUTINES keys are still in English ("Monday") because I didn't change the keys in data.js, only values.
+  const dayNameKey = format(date, 'EEEE', { locale: enUS });
+  const routine = MOCK_ROUTINES[dayNameKey];
 
   useEffect(() => {
-    router.replace('/workout');
-  }, [router]);
-
+      // Check weight oldness
+      const saved = localStorage.getItem('userProfile');
+      if (saved) {
+          const data = JSON.parse(saved);
+          if (data.lastWeighIn) {
+              const days = differenceInDays(new Date(), new Date(data.lastWeighIn));
+              if (days >= 14) setShowWeightWarning(true);
+          }
+      } else {
+           setShowWeightWarning(true); // Never weighed in
+      }
+  }, []);
+  
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p>Redirecting to your workout...</p>
+    <div className="min-h-screen bg-black pb-24">
+      {/* Header */}
+      <header className="pt-8 px-4 pb-4">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <p className="text-zinc-500 font-medium text-sm uppercase tracking-wider">Bienvenido, Miguel</p>
+              <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+            </div>
+            <div className="h-10 w-10 rounded-full border border-zinc-700 overflow-hidden relative">
+                 <img src="/profile.jpg" alt="Profile" className="w-full h-full object-cover" />
+            </div>
+          </div>
+      </header>
+
+      {/* Weight Warning */}
+      {showWeightWarning && (
+          <div className="mx-4 mb-6 bg-yellow-900/30 border border-yellow-700/50 p-4 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <AlertCircle className="text-yellow-500 w-6 h-6" />
+                  <div>
+                      <p className="text-white text-sm font-bold">¡Hora de pesarse!</p>
+                      <p className="text-yellow-200/70 text-xs">Han pasado 2 semanas.</p>
+                  </div>
+              </div>
+              <Link href="/profile" className="bg-yellow-500 text-black text-xs font-bold px-3 py-2 rounded-lg">
+                  REGISTRAR
+              </Link>
+          </div>
+      )}
+
+      {/* Calendar Strip */}
+      <section className="mb-8">
+         <DashboardCalendar 
+            selectedDate={date} 
+            onSelectDate={setDate}
+         />
+      </section>
+
+      {/* Main Action Card */}
+      <section className="mb-8">
+         <DayRoutineCard 
+            dayName={format(date, 'EEEE', { locale: enUS })}
+            routineName={routine?.name}
+         />
+      </section>
+
+      {/* Quick Stats / History access */}
+      <section className="px-4 grid grid-cols-2 gap-3">
+          <Link href="/history" className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center gap-2 hover:bg-zinc-800 transition-colors">
+               <History className="w-8 h-8 text-emerald-500" />
+               <span className="text-sm font-bold text-zinc-300">Historial</span>
+          </Link>
+           <Link href="/profile" className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center gap-2 hover:bg-zinc-800 transition-colors">
+               <Scale className="w-8 h-8 text-blue-500" />
+               <span className="text-sm font-bold text-zinc-300">Tu Peso</span>
+          </Link>
+      </section>
     </div>
   );
 }

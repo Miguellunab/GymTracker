@@ -8,39 +8,82 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model Exercise {
+
+model WeightLog {
   id        String   @id @default(cuid())
-  name      String   @unique
-  category  String   // "Push", "Pull", "Legs", "Cardio", "Core"
-  sets      Set[]
+  weight    Float
+  date      DateTime @default(now())
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
-model WorkoutSession {
+
+model Routine {
   id          String   @id @default(cuid())
-  startTime   DateTime @default(now())
-  endTime     DateTime?
-  bodyweight  Float?
-  rating      Int?     // 1-5 scale
-  notes       String?
-  sets        Set[]
-  
+  name        String   // "Push Day", "Pull Day"
+  daysOfWeek  String[] // ["Monday", "Thursday"]
+  exercises   RoutineExercise[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-model Set {
+model Exercise {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  muscleGroup  String   // "Chest", "Back", "Legs"
+  notes        String?
+  routines     RoutineExercise[]
+  workoutSets  WorkoutSet[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model RoutineExercise {
+  id          String   @id @default(cuid())
+  routineId   String
+  exerciseId  String
+  order       Int      @default(0) // Control display order
+  
+  routine     Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercise    Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([routineId])
+  @@index([exerciseId])
+}
+
+model WorkoutSession {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  routineName     String?  // "Pecho / Espalda", "Pierna", etc. or "Rest"
+  durationSeconds Int?     // Total time in seconds
+  totalCalories   Float?   // Calculated
+  
+  didCardio       Boolean  @default(false)
+  cardioMinutes   Int?
+  cardioIntensity String?  // "Low", "Medium", "High"
+  
+  notes           String?
+  
+  sets            WorkoutSet[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model WorkoutSet {
   id                String   @id @default(cuid())
   workoutSessionId  String
   exerciseId        String
   
-  weight            Float    // in kg
+  weight            Float
   reps              Int
+  isWarmup          Boolean  @default(false)
   rpe               Int?     // 1-10
-  restTimeTaken     Int?     // seconds
-  createdAt         DateTime @default(now())
+  restTimeUsed      Int?     // seconds from timer
 
+  // Supersets support (Biseries)
+  weight2           Float?
+  reps2             Int?
+  
   session   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
   exercise  Exercise       @relation(fields: [exerciseId], references: [id])
 

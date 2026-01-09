@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "^5.10.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.0",
