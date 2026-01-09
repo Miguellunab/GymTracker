@@ -11,26 +11,11 @@ import Link from 'next/link';
 
 export default function HomePage() {
   const [date, setDate] = useState(new Date());
-  const [showWeightWarning, setShowWeightWarning] = useState(false);
 
   // Get day string for mock lookup (Monday, Tuesday...)
   // Note: MOCK_ROUTINES keys are still in English ("Monday") because I didn't change the keys in data.js, only values.
   const dayNameKey = format(date, 'EEEE', { locale: enUS });
   const routine = MOCK_ROUTINES[dayNameKey];
-
-  useEffect(() => {
-      // Check weight oldness
-      const saved = localStorage.getItem('userProfile');
-      if (saved) {
-          const data = JSON.parse(saved);
-          if (data.lastWeighIn) {
-              const days = differenceInDays(new Date(), new Date(data.lastWeighIn));
-              if (days >= 14) setShowWeightWarning(true);
-          }
-      } else {
-           setShowWeightWarning(true); // Never weighed in
-      }
-  }, []);
   
   return (
     <div className="min-h-screen bg-black pb-24">
@@ -46,22 +31,6 @@ export default function HomePage() {
             </div>
           </div>
       </header>
-
-      {/* Weight Warning */}
-      {showWeightWarning && (
-          <div className="mx-4 mb-6 bg-yellow-900/30 border border-yellow-700/50 p-4 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                  <AlertCircle className="text-yellow-500 w-6 h-6" />
-                  <div>
-                      <p className="text-white text-sm font-bold">¡Hora de pesarse!</p>
-                      <p className="text-yellow-200/70 text-xs">Han pasado 2 semanas.</p>
-                  </div>
-              </div>
-              <Link href="/profile" className="bg-yellow-500 text-black text-xs font-bold px-3 py-2 rounded-lg">
-                  REGISTRAR
-              </Link>
-          </div>
-      )}
 
       {/* Calendar Strip */}
       <section className="mb-8">

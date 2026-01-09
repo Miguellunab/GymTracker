@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { BigButton } from "@/components/core/BigButton";
-import { User, Scale, Ruler, Flame, Plus } from "lucide-react";
+import { User, Scale, Ruler, Flame, Plus, Trash2 } from "lucide-react";
 
 export default function ProfilePage() {
     // Fixed Profile
@@ -26,6 +26,7 @@ export default function ProfilePage() {
     }, []);
 
     const currentWeight = weightLog[0]?.weight || 0;
+    const lastDate = weightLog[0]?.date ? new Date(weightLog[0].date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) : "Sin registro";
 
     const handleAddWeight = async () => {
         if(!newWeight) return;
@@ -43,6 +44,17 @@ export default function ProfilePage() {
             alert("Error");
         }
     };
+
+    const handleDeleteWeight = async (id) => {
+        if(!confirm("¿Eliminar este registro?")) return;
+        try {
+            await fetch(`/api/weight?id=${id}`, { method: 'DELETE' });
+            // Optimistic update
+            setWeightLog(prev => prev.filter(l => l.id !== id));
+        } catch(e) {
+            alert("Error al eliminar");
+        }
+    };
     
     return (
         <div className="min-h-screen bg-black pb-24 p-4 flex flex-col items-center">
@@ -58,10 +70,13 @@ export default function ProfilePage() {
             </div>
 
             <h1 className="text-2xl font-bold text-white mb-1">{USER_NAME}</h1>
-            <div className="flex items-center gap-4 text-sm text-zinc-500 mb-8">
-                <span className="flex items-center gap-1"><Ruler className="w-4 h-4" /> {USER_HEIGHT} cm</span>
-                <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
-                <span className="flex items-center gap-1"><Scale className="w-4 h-4" /> {currentWeight} kg</span>
+            <div className="flex flex-col items-center gap-1 text-sm text-zinc-500 mb-8">
+                <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1"><Ruler className="w-4 h-4" /> {USER_HEIGHT} cm</span>
+                    <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
+                    <span className="flex items-center gap-1"><Scale className="w-4 h-4" /> {currentWeight} kg</span>
+                </div>
+                {weightLog.length > 0 && <span className="text-xs text-zinc-600">Último pesaje: {lastDate}</span>}
             </div>
 
             <div className="w-full max-w-md space-y-8">
@@ -103,9 +118,17 @@ export default function ProfilePage() {
 
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
                         {weightLog.map((log) => (
-                            <div key={log.id} className="p-4 flex items-center justify-between">
+                            <div key={log.id} className="p-4 flex items-center justify-between group">
                                 <span className="text-zinc-500 text-sm">{new Date(log.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
-                                <span className="text-white font-bold font-mono">{log.weight} kg</span>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-white font-bold font-mono">{log.weight} kg</span>
+                                    <button 
+                                        onClick={() => handleDeleteWeight(log.id)}
+                                        className="text-zinc-600 hover:text-red-500 transition-colors p-1"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                         {weightLog.length === 0 && (
