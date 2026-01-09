@@ -98,7 +98,7 @@ export default function DashboardCalendar({ selectedDate, onSelectDate }) { // r
         if (!entry) return "bg-zinc-900 text-zinc-600 border-zinc-800"; // Empty status
 
         const type = entry.title;
-        if (type === "Pierna") return "bg-red-900/80 text-red-100 border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.3)]";
+        if (type.includes("Pierna")) return "bg-red-900/80 text-red-100 border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.3)]";
         if (type === "Pecho / Espalda") return "bg-blue-900/80 text-blue-100 border-blue-700 shadow-[0_0_15px_rgba(37,99,235,0.3)]";
         if (type === "Brazos") return "bg-purple-900/80 text-purple-100 border-purple-700 shadow-[0_0_15px_rgba(147,51,234,0.3)]";
         if (type === "Descanso") return "bg-emerald-900/50 text-emerald-400 border-emerald-800";
@@ -147,7 +147,10 @@ export default function DashboardCalendar({ selectedDate, onSelectDate }) { // r
                     </div>
                     
                     <button onClick={() => handleUpdateStatus('Pecho / Espalda')} className="w-full p-3 rounded-xl bg-blue-900/40 text-blue-200 border border-blue-800 font-bold text-sm">Pecho / Espalda</button>
-                    <button onClick={() => handleUpdateStatus('Pierna')} className="w-full p-3 rounded-xl bg-red-900/40 text-red-200 border border-red-800 font-bold text-sm">Pierna</button>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleUpdateStatus('Pierna Cuádriceps')} className="p-3 rounded-xl bg-red-900/40 text-red-200 border border-red-800 font-bold text-sm">Cuádriceps</button>
+                        <button onClick={() => handleUpdateStatus('Pierna Femoral')} className="p-3 rounded-xl bg-red-900/40 text-red-200 border border-red-800 font-bold text-sm">Femoral</button>
+                    </div>
                     <button onClick={() => handleUpdateStatus('Brazos')} className="w-full p-3 rounded-xl bg-purple-900/40 text-purple-200 border border-purple-800 font-bold text-sm">Brazos</button>
                     <button onClick={() => handleUpdateStatus('Descanso')} className="w-full p-3 rounded-xl bg-emerald-900/40 text-emerald-200 border border-emerald-800 font-bold text-sm">Descanso</button>
                     
