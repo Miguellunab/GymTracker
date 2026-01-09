@@ -15,8 +15,14 @@ export default function ProfilePage() {
 
     useEffect(() => {
         fetch('/api/weight')
-            .then(res => res.json())
-            .then(data => setWeightLog(data));
+            .then(res => {
+                if(!res.ok) throw new Error("Failed to fetch weight logs");
+                return res.json();
+            })
+            .then(data => {
+                if(Array.isArray(data)) setWeightLog(data);
+            })
+            .catch(e => console.error(e));
     }, []);
 
     const currentWeight = weightLog[0]?.weight || 0;

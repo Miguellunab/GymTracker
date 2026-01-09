@@ -1,3 +1,5 @@
+"use client";
+
 import { addDays, subDays, format, isSameDay, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import { useRef, useEffect, useState } from "react";
@@ -12,26 +14,42 @@ export default function DashboardCalendar({ selectedDate, onSelectDate }) { // r
     const [weightLogs, setWeightLogs] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [modalDate, setModalDate] = useState(null);
+    const [mounted, setMounted] = useState(false);
 
     // Fetch Calendar Data
     const fetchData = async () => {
         try {
             const res = await fetch('/api/calendar');
-            const data = await res.json();
-            setCalendarData(data);
+            if (res.ok) {
+                const data = await res.json();
+                setCalendarData(data || {});
+            }
 
             const resWeight = await fetch('/api/weight');
-            const dataWeight = await resWeight.json();
-            setWeightLogs(dataWeight);
+            if (resWeight.ok) {
+                const dataWeight = await resWeight.json();
+                if (Array.isArray(dataWeight)) {
+                    setWeightLogs(dataWeight);
+                }
+            }
         } catch (e) {
             console.error("Calendar load failed", e);
         }
     };
 
     useEffect(() => {
+        setMounted(true);
         fetchData();
-        if (scrollRef.current) scrollRef.current.scrollLeft = 300;
     }, []);
+
+    useEffect(() => {
+        if (mounted && scrollRef.current) {
+            scrollRef.current.scrollLeft = 300;
+        }
+    }, [mounted]);
+
+    if (!mounted) return <div className="h-24 w-full bg-zinc-900/50 animate-pulse rounded-xl mb-4" />;
+
 
     // Helper to refresh from outside if needed (could export context, but simple reload works for now)
     
