@@ -8,6 +8,17 @@ export function useTimerEngine() {
 
     const { requestWakeLock, releaseWakeLock } = useWakeLock();
 
+    // HACk: Silent Audio for iOS Background
+    const silentAudioRef = useRef(null);
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+            audio.loop = true;
+            audio.volume = 0.01;
+            silentAudioRef.current = audio;
+        }
+    }, []);
+
     const audioContextRef = useRef(null);
     const oscillatorRef = useRef(null);
 
@@ -85,6 +96,7 @@ export function useTimerEngine() {
                 setIsRunning(false);
                 setTargetTime(null);
                 releaseWakeLock();
+                if(silentAudioRef.current) { silentAudioRef.current.pause(); silentAudioRef.current.currentTime = 0; }
                 notifyUser();
             }
         };
@@ -96,6 +108,11 @@ export function useTimerEngine() {
 
     const startTimer = useCallback((seconds) => {
         initAudio();
+        
+        // Play silent audio to keep background alive
+        if(silentAudioRef.current) {
+            silentAudioRef.current.play().catch(e => console.log("Audio play failed", e));
+        }
 
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
@@ -118,6 +135,7 @@ export function useTimerEngine() {
 
     const stopTimer = useCallback(() => {
         setIsRunning(false);
+        if(silentAudioRef.current) { silentAudioRef.current.pause(); silentAudioRef.current.currentTime = 0; }
         setTargetTime(null);
         setTimeLeft(0);
         releaseWakeLock();
