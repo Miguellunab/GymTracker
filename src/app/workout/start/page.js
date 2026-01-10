@@ -1,12 +1,109 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { BigButton } from '@/components/core/BigButton';
 import TimerWidget from '@/components/timer/TimerWidget';
 import { ChevronDown, ChevronUp, CheckCircle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
+import { MuscleMap } from '@/components/visualization/MuscleMap';
+import { GifModal, GifChip } from '@/components/media/GifModal';
+
+const EXERCISE_ID_OVERRIDE = {
+    // Override map for spanish slugs -> specific exercise-db IDs
+    'press-inclinado-con-mancuernas': 'Incline_Dumbbell_Press',
+    'cristos-inversos': 'Reverse_Flyes',
+    'press-de-pecho-inclinado-con-mancuernas': 'Incline_Dumbbell_Press',
+    'press-de-banca-con-barra': 'Barbell_Bench_Press_-_Medium_Grip',
+    'press-de-banca': 'Barbell_Bench_Press_-_Medium_Grip',
+    'dominadas-con-lastre': 'Weighted_Pull_Ups',
+    'dominadas': 'Pullups',
+    'pull-ups': 'Pullups',
+    'press-militar-con-mancuernas': 'Dumbbell_Shoulder_Press',
+    'remo-con-barra': 'Bent_Over_Barbell_Row',
+    'sentadilla-libre': 'Barbell_Squat',
+    'sentadilla': 'Barbell_Squat',
+    'squat': 'Barbell_Squat',
+    'peso-muerto-rumano': 'Romanian_Deadlift',
+    'peso-muerto': 'Deadlift',
+    'deadlift': 'Deadlift',
+    'extensiones-de-triceps': 'Triceps_Pushdown',
+    'extensiones-de-tricep': 'Triceps_Pushdown',
+    'face-pulls': 'Face_Pull',
+    'face-pull': 'Face_Pull',
+    'biserie-remo-con-barra-jalon-tras-nuca': 'Bent_Over_Barbell_Row',
+    'jalon-al-pecho': 'Wide-Grip_Lat_Pulldown',
+    'jalon': 'Wide-Grip_Lat_Pulldown',
+    'lat-pulldown': 'Wide-Grip_Lat_Pulldown',
+    'maquina-de-aperturas-pec-deck': 'Butterfly',
+    'pec-deck': 'Butterfly',
+    'aperturas': 'Butterfly',
+    'remo-abierto-en-maquina': 'Seated_Cable_Rows',
+    'remo-sentado': 'Seated_Cable_Rows',
+    // Pierna Cuádriceps
+    'sentadilla-hack': 'Hack_Squat',
+    'hack-squat': 'Hack_Squat',
+    'prensa-de-piernas': 'Leg_Press',
+    'leg-press': 'Leg_Press',
+    'prensa': 'Leg_Press',
+    'extension-de-cuadriceps': 'Leg_Extensions',
+    'extensiones-de-cuadriceps': 'Leg_Extensions',
+    'leg-extensions': 'Leg_Extensions',
+    'sentadilla-bulgara': 'Barbell_Lunge',
+    'bulgarian-split-squat': 'Barbell_Lunge',
+    'zancadas': 'Barbell_Lunge',
+    // Pierna Femoral
+    'curl-femoral-sentado': 'Seated_Band_Hamstring_Curl',
+    'curl-femoral-acostado': 'Lying_Leg_Curls',
+    'leg-curl': 'Lying_Leg_Curls',
+    'hip-thrust-en-maquina': 'Barbell_Hip_Thrust',
+    'hip-thrust': 'Barbell_Hip_Thrust',
+    'empuje-de-cadera': 'Barbell_Hip_Thrust',
+    // Brazos
+    'curl-inclinado': 'Incline_Dumbbell_Curl',
+    'curl-martillo': 'Hammer_Curls',
+    'press-frances': 'Lying_Triceps_Press',
+    'extension-triceps': 'Triceps_Pushdown',
+    'elevaciones-laterales': 'Dumbbell_Lateral_Raise',
+    'elevaciones-posteriores': 'Bent_Over_Low-Pulley_Side_Lateral',
+};
+
+// Map to V2 API image names (for higher quality images with muscle highlighting)
+const EXERCISE_V2_IMAGE_MAP = {
+    'Butterfly': 'Lever-Pec-Deck-Fly-Chest',
+    'Incline_Dumbbell_Press': 'Dumbbell-Incline-Fly-Chest',
+    'Barbell_Bench_Press_-_Medium_Grip': 'Barbell-Bench-Press-Chest',
+    'Wide-Grip_Lat_Pulldown': 'Cable-Lat-Pulldown-Back',
+    'Seated_Cable_Rows': 'Cable-Seated-Row-Back',
+    'Bent_Over_Barbell_Row': 'Barbell-Bent-Over-Row-Back',
+    'Weighted_Pull_Ups': 'Weighted-Pull-Up-Back',
+    'Pullups': 'Pull-Up-Back',
+    'Dumbbell_Shoulder_Press': 'Dumbbell-Shoulder-Press-Shoulders',
+    'Barbell_Squat': 'Barbell-Squat-Thighs',
+    'Hack_Squat': 'Sled-Hack-Squat-Thighs',
+    'Leg_Press': 'Sled-45-Degree-Leg-Press-Thighs',
+    'Leg_Extensions': 'Lever-Leg-Extension-Thighs',
+    'Barbell_Lunge': 'Barbell-Lunge-Thighs',
+    'Romanian_Deadlift': 'Barbell-Romanian-Deadlift-Hips',
+    'Lying_Leg_Curls': 'Lever-Lying-Leg-Curl-Hamstrings',
+    'Seated_Band_Hamstring_Curl': 'Lever-Seated-Leg-Curl-Hamstrings',
+    'Barbell_Hip_Thrust': 'Barbell-Hip-Thrust-Hips',
+    'Triceps_Pushdown': 'Cable-Pushdown-Triceps',
+    'Lying_Triceps_Press': 'Barbell-Lying-Triceps-Extension-Triceps',
+    'Incline_Dumbbell_Curl': 'Dumbbell-Incline-Curl-Biceps',
+    'Hammer_Curls': 'Dumbbell-Hammer-Curl-Biceps',
+    'Dumbbell_Lateral_Raise': 'Dumbbell-Lateral-Raise-Shoulders',
+};
+
+const slugify = (value = '') =>
+    value
+        .toString()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
 
 function WorkoutRunner() {
     const searchParams = useSearchParams();
@@ -19,6 +116,9 @@ function WorkoutRunner() {
     const [expandedExercise, setExpandedExercise] = useState(null);
     const [workoutData, setWorkoutData] = useState({}); 
     const [showFinishModal, setShowFinishModal] = useState(false);
+    const [gifModal, setGifModal] = useState({ open: false, title: '', url: '', source: '', imageUrls: null });
+    const exerciseDbRef = useRef(null);
+    const dbPromiseRef = useRef(null);
     
     // Timer & Metrics
     const timerEngine = useTimerEngine();
@@ -84,10 +184,113 @@ function WorkoutRunner() {
 
     if (loading) return <div className="min-h-screen bg-black text-white p-10">Cargando rutina...</div>;
 
+    const activeMuscles = exercises.map((ex) => ex.muscle).filter(Boolean);
+
+    const ensureExerciseDb = async () => {
+        if (exerciseDbRef.current) return exerciseDbRef.current;
+        if (dbPromiseRef.current) return dbPromiseRef.current;
+        const url = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
+        dbPromiseRef.current = fetch(url)
+            .then((res) => res.json())
+            .then((json) => {
+                exerciseDbRef.current = json;
+                return json;
+            })
+            .catch((err) => {
+                console.error('Failed to load exercise-db manifest', err);
+                dbPromiseRef.current = null;
+                throw err;
+            });
+        return dbPromiseRef.current;
+    };
+
+    const normalizeName = (value = '') =>
+        value
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .trim();
+
+    const handleShowGif = async (exercise) => {
+        const slug = slugify(exercise.name);
+        const overrideId = EXERCISE_ID_OVERRIDE[slug];
+        const fallbackId = overrideId || slug;
+        
+        const fallbackSource = `https://www.exercise-db.com/exercise/${fallbackId}`;
+
+        let finalUrl = exercise.gifUrl;
+        let finalSource = exercise.sourceUrl || fallbackSource;
+        let imageUrls = [];
+
+        if (!finalUrl) {
+            try {
+                const db = await ensureExerciseDb();
+                
+                // Try multiple matching strategies
+                let match = null;
+                
+                // Strategy 1: Match by override ID
+                if (overrideId) {
+                    match = db.find((item) => item.id === overrideId || normalizeName(item.name) === normalizeName(exercise.name));
+                }
+                
+                // Strategy 2: Match by normalized name
+                if (!match) {
+                    match = db.find((item) => normalizeName(item.name) === normalizeName(exercise.name));
+                }
+                
+                // Strategy 3: Partial match (contains the exercise name)
+                if (!match) {
+                    const exerciseNameNorm = normalizeName(exercise.name);
+                    match = db.find((item) => {
+                        const itemNameNorm = normalizeName(item.name);
+                        return itemNameNorm.includes(exerciseNameNorm) || exerciseNameNorm.includes(itemNameNorm);
+                    });
+                }
+                
+                if (match) {
+                    const id = match.id || fallbackId;
+                    
+                    // Get all images to create animated slideshow effect
+                    if (match.images && match.images.length > 0) {
+                        imageUrls = match.images.map(img => 
+                            `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${img}`
+                        );
+                        finalUrl = imageUrls[0]; // First image as fallback
+                    } else {
+                        finalUrl = `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${id}/0.jpg`;
+                    }
+                    
+                    finalSource = match.url || `https://www.exercise-db.com/exercise/${id}`;
+                } else {
+                    console.warn(`No match found for exercise: ${exercise.name}`);
+                    finalUrl = `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${fallbackId}/0.jpg`;
+                }
+            } catch (err) {
+                console.warn("ExerciseDB lookup failed, using fallback", err);
+                finalUrl = `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${fallbackId}/0.jpg`;
+            }
+        }
+        
+        // Absolute fallback
+        if(!finalUrl) {
+            finalUrl = `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${fallbackId}/0.jpg`;
+        }
+
+        setGifModal({
+            open: true,
+            title: exercise.name,
+            url: finalUrl,
+            source: finalSource,
+            imageUrls: imageUrls.length > 1 ? imageUrls : null, // Only pass if multiple images
+        });
+    };
+
     return (
-        <div className="min-h-screen bg-black pb-32 p-4">
+        <div className="min-h-screen bg-transparent pb-8">
              {/* Sticky Header with Timer */}
-             <div className="sticky top-0 z-10 bg-black/90 backdrop-blur-md pb-4 pt-2 -mx-4 px-4 border-b border-zinc-800/50 shadow-lg">
+             <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-800/50 bg-black/90 px-4 pb-4 pt-2 backdrop-blur-md shadow-lg">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-xl font-bold font-mono uppercase text-emerald-500">{routineName}</h1>
                     <button 
@@ -99,6 +302,12 @@ function WorkoutRunner() {
                 </div>
                 <TimerWidget engine={timerEngine} />
              </div>
+
+                {activeMuscles.length > 0 && (
+                    <div className="mt-6">
+                        <MuscleMap activeMuscles={activeMuscles} />
+                    </div>
+                )}
 
              {/* Exercise List */}
              <div className="mt-6 flex flex-col gap-4">
@@ -113,6 +322,7 @@ function WorkoutRunner() {
                             sets={workoutData[ex.id] || []}
                             onSaveSet={(w, r, wrm, w2, r2) => handleSaveSet(ex.id, w, r, wrm, w2, r2)}
                             isLast={isLast}
+                            onShowGif={() => handleShowGif(ex)}
                             onNext={() => {
                                 if (isLast) {
                                     setShowFinishModal(true);
@@ -135,11 +345,20 @@ function WorkoutRunner() {
                     onSave={submitWorkout}
                 />
              )}
+
+            <GifModal 
+                open={gifModal.open}
+                onClose={() => setGifModal((prev) => ({ ...prev, open: false }))}
+                title={gifModal.title}
+                gifUrl={gifModal.url}
+                sourceUrl={gifModal.source}
+                imageUrls={gifModal.imageUrls}
+            />
         </div>
     );
 }
 
-function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext, isLast }) {
+function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext, isLast, onShowGif }) {
     const [numSets, setNumSets] = useState('');
     
     // Primary (or only) exercise
@@ -183,10 +402,10 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
     }
 
     return (
-        <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 transition-all">
+        <div className="bg-zinc-900/70 rounded-2xl overflow-hidden border border-zinc-800 transition-all backdrop-blur">
             <button 
                 onClick={onToggle}
-                className="w-full p-4 flex items-center justify-between bg-zinc-800/50"
+                className="w-full p-4 flex items-center justify-between bg-zinc-800/60"
             >
                 <div className="text-left">
                    <h3 className="text-lg font-bold text-white text-left break-words w-[250px] leading-tight">
@@ -211,7 +430,7 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
 
             {isExpanded && (
                 <div className="p-4 bg-zinc-900">
-                     <div className="flex justify-between items-start mb-4">
+                     <div className="flex justify-between items-start mb-4 gap-3">
                         <p className="text-zinc-500 text-sm italic">{exercise.notes}</p>
                         {exercise.lastWeight && (
                             <div className="text-right">
@@ -221,6 +440,7 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                                 </span>
                             </div>
                         )}
+                        <GifChip onClick={onShowGif} />
                      </div>
                     
                     {/* Warmup Section */}
@@ -338,11 +558,23 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
     const [cardioTime, setCardioTime] = useState(''); 
     const [intensity, setIntensity] = useState('Medium');
     const [step, setStep] = useState(1);
+    const [manualDuration, setManualDuration] = useState(Math.floor(durationSeconds / 60).toString());
     
     const calculateCalories = () => {
-        // Reverted to simple formula: 0.06 kcal/kg/min (approx 3.5 METs)
-        const durationMinutes = durationSeconds / 60;
-        const liftCals = 0.06 * userWeight * durationMinutes;
+        // Usar duración manual ingresada por el usuario
+        const durationMinutes = Number(manualDuration) || 0;
+        
+        // Factor de intensidad según tipo de rutina
+        let intensityFactor = 0.06; // Base: 0.06 kcal/kg/min (aprox 3.5 METs)
+        
+        // Pierna tiene mayor consumo calórico (frecuencia cardíaca más alta)
+        const routineLower = routineName.toLowerCase();
+        if (routineLower.includes('pierna') || routineLower.includes('cuadriceps') || 
+            routineLower.includes('femoral') || routineLower.includes('leg')) {
+            intensityFactor = 0.08; // 33% más calorías para pierna
+        }
+        
+        const liftCals = intensityFactor * userWeight * durationMinutes;
         
         let cardioCals = 0;
         if (didCardio) {
@@ -365,6 +597,18 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
 
                 {step === 1 && (
                     <div className="space-y-6">
+                        <div>
+                            <label className="text-zinc-400 block mb-2 text-sm font-bold">⏱️ Duración Real (minutos)</label>
+                            <input 
+                                type="number" 
+                                value={manualDuration}
+                                onChange={e => setManualDuration(e.target.value)}
+                                className="w-full bg-black border border-zinc-700 p-4 rounded-xl text-white text-2xl text-center placeholder-zinc-700 font-bold"
+                                placeholder="60"
+                            />
+                            <p className="text-zinc-600 text-xs mt-2">Ingresa la duración de tu smartwatch</p>
+                        </div>
+
                         <div>
                             <label className="text-zinc-400 block mb-2">¿Hiciste Cardio?</label>
                             <div className="flex gap-4">
@@ -427,9 +671,16 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
                         <Flame className="w-16 h-16 text-orange-500 mx-auto mb-4 animate-pulse" />
                         <h3 className="text-zinc-400 uppercase tracking-widest text-xs font-bold">Calorías Totales</h3>
                         <p className="text-5xl font-black text-white my-2">{calculateCalories()}</p>
+                        <p className="text-zinc-500 text-sm mb-2">{manualDuration} min de entrenamiento</p>
                         <p className="text-zinc-500 text-sm mb-8">Gran trabajo hoy, campeón.</p>
 
-                        <BigButton onClick={() => onSave({ didCardio, cardioMinutes: cardioTime, cardioIntensity: intensity, totalCalories: calculateCalories() })}>
+                        <BigButton onClick={() => onSave({ 
+                            didCardio, 
+                            cardioMinutes: cardioTime, 
+                            cardioIntensity: intensity, 
+                            totalCalories: calculateCalories(),
+                            durationSeconds: Number(manualDuration) * 60 // Guardar duración manual
+                        })}>
                             GUARDAR WORKOUT
                         </BigButton>
                          <button onClick={() => setStep(1)} className="mt-4 text-sm text-zinc-500 underline">

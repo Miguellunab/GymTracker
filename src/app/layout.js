@@ -19,6 +19,11 @@ export const metadata = {
     title: "GymTracker",
     description: "Advanced PWA Workout Tracker",
     manifest: "/manifest.json",
+    icons: {
+        icon: "/icons/icon-192.png",
+        shortcut: "/icons/icon-192.png",
+        apple: "/icons/icon-192.png",
+    },
     appleWebApp: {
         capable: true,
         statusBarStyle: 'black-translucent',
@@ -32,10 +37,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
     return (
         <html lang="en">
-            <body className={`${inter.variable} ${outfit.variable} antialiased bg-black text-white oversight-none`}>
-                <main className="pb-20">
-                    {children}
-                </main>
+            <body className={`${inter.variable} ${outfit.variable} antialiased bg-black text-white` }>
+                <div className="mx-auto max-w-3xl px-4 sm:px-6">
+                    <main>
+                        {children}
+                    </main>
+                </div>
                 <Navbar />
             </body>
         </html>
