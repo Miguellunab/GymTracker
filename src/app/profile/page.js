@@ -12,6 +12,9 @@ export default function ProfilePage() {
     const [weightLog, setWeightLog] = useState([]);
     const [showAddWeight, setShowAddWeight] = useState(false);
     const [newWeight, setNewWeight] = useState("");
+    const [appMode, setAppMode] = useState("main");
+    const [pin, setPin] = useState("");
+    const [modeError, setModeError] = useState("");
 
     useEffect(() => {
         fetch('/api/weight')
@@ -23,6 +26,11 @@ export default function ProfilePage() {
                 if(Array.isArray(data)) setWeightLog(data);
             })
             .catch(e => console.error(e));
+
+        fetch('/api/mode')
+            .then(res => res.json())
+            .then(data => setAppMode(data?.mode || 'main'))
+            .catch(() => setAppMode('main'));
     }, []);
 
     const currentWeight = weightLog[0]?.weight || 0;
@@ -55,6 +63,25 @@ export default function ProfilePage() {
             alert("Error al eliminar");
         }
     };
+
+    const handleModeChange = async (mode) => {
+        setModeError("");
+        try {
+            const res = await fetch('/api/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, pin })
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data?.error || 'No se pudo cambiar el modo');
+            }
+            const data = await res.json();
+            setAppMode(data.mode);
+        } catch (e) {
+            setModeError(e?.message || 'Error');
+        }
+    };
     
     return (
         <div className="min-h-screen bg-black pb-24 p-4 flex flex-col items-center">
@@ -80,6 +107,58 @@ export default function ProfilePage() {
             </div>
 
             <div className="w-full max-w-md space-y-8">
+                <section>
+                    <div className="flex justify-between items-end mb-4 px-2">
+                        <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                            <User className="w-4 h-4" /> Entorno
+                        </h2>
+                    </div>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-white">Modo actual</p>
+                                <p className="text-xs text-zinc-500">{appMode === 'main' ? 'Producción' : appMode === 'test' ? 'Testing' : 'Dev'}</p>
+                            </div>
+                            <span className="text-xs rounded-full border border-zinc-700 px-2 py-1 text-zinc-400">{appMode}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                onClick={() => handleModeChange('main')}
+                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'main' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
+                            >
+                                Main
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('test')}
+                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'test' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
+                            >
+                                Test
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('dev')}
+                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'dev' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
+                            >
+                                Dev
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="password"
+                                value={pin}
+                                onChange={(e) => setPin(e.target.value)}
+                                placeholder="PIN para dev"
+                                className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                            />
+                            <button
+                                onClick={() => handleModeChange('dev')}
+                                className="text-xs font-semibold px-3 py-2 rounded-lg border border-emerald-600 text-emerald-300"
+                            >
+                                Entrar
+                            </button>
+                        </div>
+                        {modeError && <p className="text-xs text-rose-400">{modeError}</p>}
+                    </div>
+                </section>
                 
                 {/* Weight Section */}
                 <section>

@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
+
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
 
 export async function GET(request, { params }) {
     const { id } = params;
     try {
+        const prisma = getPrisma(getMode(request));
         const routine = await prisma.routine.findUnique({
             where: { id },
             include: {
@@ -25,6 +30,7 @@ export async function PUT(request, { params }) {
     const { exercises } = body; // expect [{ exerciseId, order }]
     
     try {
+        const prisma = getPrisma(getMode(request));
         // Rebuild the routine exercises
         // Transaction: Delete all existing, then create new ones
         await prisma.$transaction(async (tx) => {

@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
+
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
 
     try {
+        const prisma = getPrisma(getMode(request));
         if (name) {
             const routine = await prisma.routine.findFirst({
                 where: { name: name },

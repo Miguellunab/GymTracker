@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
+
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
 
 export async function GET(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const history = await prisma.workoutSession.findMany({
             orderBy: { date: 'desc' },
             include: {
@@ -19,6 +24,7 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const body = await request.json();
         const { routineName, date, notes, didCardio, cardioMinutes, cardioIntensity, workoutData, durationSeconds, totalCalories } = body;
         

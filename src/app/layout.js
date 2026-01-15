@@ -1,6 +1,7 @@
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
+import { AICoachShell } from "@/components/coach/AICoachShell";
 
 const inter = Inter({ subsets: ["latin"], variable: '--font-inter' });
 // Using Outfit for that "modern numerals" look
@@ -43,6 +44,7 @@ export default function RootLayout({ children }) {
                         {children}
                     </main>
                 </div>
+                <AICoachShell />
                 <Navbar />
             </body>
         </html>

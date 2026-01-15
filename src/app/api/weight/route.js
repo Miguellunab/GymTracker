@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
 
-export async function GET() {
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
+
+export async function GET(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const logs = await prisma.weightLog.findMany({
             orderBy: { date: 'desc' }
         });
@@ -14,6 +19,7 @@ export async function GET() {
 
 export async function POST(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const { weight, date } = await request.json();
         const log = await prisma.weightLog.create({
             data: {
@@ -29,6 +35,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
 

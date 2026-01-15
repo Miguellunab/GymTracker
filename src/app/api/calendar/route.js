@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
 
 // Helper to get start/end of day
 const getDayRange = (dateString) => {
@@ -10,8 +10,13 @@ const getDayRange = (dateString) => {
     return { start, end };
 };
 
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
+
 export async function GET(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         // Just return all sessions mapping date -> status
         const sessions = await prisma.workoutSession.findMany({
             select: {
@@ -40,6 +45,7 @@ export async function GET(request) {
 export async function POST(request) {
     // Manually setting a status (e.g. "Rest")
     try {
+        const prisma = getPrisma(getMode(request));
         const { date, type } = await request.json(); // type = "Descanso", "Pierna", etc.
         const { start, end } = getDayRange(date);
 
@@ -98,6 +104,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const { searchParams } = new URL(request.url);
         const date = searchParams.get('date');
         

@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
 
-export async function GET() {
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
+
+export async function GET(request) {
     try {
+        const prisma = getPrisma(getMode(request));
         const routines = await prisma.routine.findMany({
             include: {
                 _count: {

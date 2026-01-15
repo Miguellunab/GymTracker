@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
+
+function getMode(request) {
+    return request.cookies?.get('app_mode')?.value ?? 'main';
+}
 
 // PATCH: Actualizar un workout (duración, calorías, etc.)
 export async function PATCH(request, { params }) {
     try {
+        const prisma = getPrisma(getMode(request));
         const { id } = params;
         const body = await request.json();
         
@@ -30,6 +35,7 @@ export async function PATCH(request, { params }) {
 // DELETE: Eliminar un workout (por si acaso lo necesitas después)
 export async function DELETE(request, { params }) {
     try {
+        const prisma = getPrisma(getMode(request));
         const { id } = params;
 
         await prisma.workoutSession.delete({

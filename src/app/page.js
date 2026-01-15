@@ -8,6 +8,7 @@ import DayRoutineCard from '@/components/dashboard/DayRoutineCard';
 import { MOCK_ROUTINES } from '@/lib/data';
 import { History, TrendingUp, Scale, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { AICoachTrigger } from '@/components/coach/AICoachTrigger';
 
 export default function HomePage() {
   const [date, setDate] = useState(new Date());
@@ -58,6 +59,10 @@ export default function HomePage() {
                <Scale className="w-8 h-8 text-blue-500" />
                <span className="text-sm font-bold text-zinc-300">Tu Peso</span>
           </Link>
+      </section>
+
+      <section className="px-4 mt-6">
+        <AICoachTrigger variant="card" />
       </section>
     </div>
   );
