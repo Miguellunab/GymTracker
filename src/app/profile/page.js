@@ -179,6 +179,8 @@ export default function ProfilePage() {
                             <div className="flex gap-2">
                                 <input 
                                     type="number" 
+                                    inputMode="decimal"
+                                    pattern="[0-9]*[.,]?[0-9]*"
                                     value={newWeight}
                                     onChange={e => setNewWeight(e.target.value)}
                                     placeholder="80.0"

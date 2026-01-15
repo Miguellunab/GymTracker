@@ -321,6 +321,7 @@ function WorkoutRunner() {
                             onToggle={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}
                             sets={workoutData[ex.id] || []}
                             onSaveSet={(w, r, wrm, w2, r2) => handleSaveSet(ex.id, w, r, wrm, w2, r2)}
+                            showWarmup={idx === 0}
                             isLast={isLast}
                             onShowGif={() => handleShowGif(ex)}
                             onNext={() => {
@@ -358,7 +359,7 @@ function WorkoutRunner() {
     );
 }
 
-function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext, isLast, onShowGif }) {
+function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext, isLast, onShowGif, showWarmup }) {
     const [numSets, setNumSets] = useState('');
     
     // Primary (or only) exercise
@@ -384,7 +385,7 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
         if (!numSets) return;
         
         // Save Warmup if filled
-        if(warmupWeight && warmupReps && !warmupDone) {
+           if(showWarmup && warmupWeight && warmupReps && !warmupDone) {
              onSaveSet(warmupWeight, warmupReps, true);
              setWarmupDone(true);
         }
@@ -444,38 +445,46 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                      </div>
                     
                     {/* Warmup Section */}
-                    <div className="mb-6 p-4 bg-yellow-900/10 border border-yellow-800/30 rounded-xl">
-                        <label className="text-xs text-yellow-500 font-bold uppercase mb-2 block flex items-center gap-2">
-                             <Flame className="w-3 h-3" /> Calentamiento Global
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                             <div>
-                                <input 
-                                    type="number" 
-                                    value={warmupWeight}
-                                    onChange={e => setWarmupWeight(e.target.value)}
-                                    className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-center text-white focus:border-yellow-500 outline-none placeholder-zinc-700" 
-                                    placeholder="Peso"
-                                />
-                            </div>
-                              <div>
-                                <input 
-                                    type="number" 
-                                    value={warmupReps}
-                                    onChange={e => setWarmupReps(e.target.value)}
-                                    placeholder="Reps"
-                                    className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-center text-white focus:border-yellow-500 outline-none placeholder-zinc-700" 
-                                />
+                    {showWarmup && (
+                        <div className="mb-6 p-4 bg-yellow-900/10 border border-yellow-800/30 rounded-xl">
+                            <label className="text-xs text-yellow-500 font-bold uppercase mb-2 block flex items-center gap-2">
+                                 <Flame className="w-3 h-3" /> Calentamiento Global
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                 <div>
+                                    <input 
+                                        type="number" 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={warmupWeight}
+                                        onChange={e => setWarmupWeight(e.target.value)}
+                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-center text-white focus:border-yellow-500 outline-none placeholder-zinc-700" 
+                                        placeholder="Peso"
+                                    />
+                                </div>
+                                  <div>
+                                    <input 
+                                        type="number" 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={warmupReps}
+                                        onChange={e => setWarmupReps(e.target.value)}
+                                        placeholder="Reps"
+                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-center text-white focus:border-yellow-500 outline-none placeholder-zinc-700" 
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     <div className="mb-6 space-y-4">
                         {/* Num Sets */}
                         <div>
                              <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Total Series</label>
-                             <input 
-                                type="number" 
+                                      <input 
+                                          type="number" 
+                                          inputMode="numeric"
+                                          pattern="[0-9]*"
                                 value={numSets}
                                 onChange={e => setNumSets(e.target.value)}
                                 className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-2xl font-bold text-center text-white focus:border-emerald-500 outline-none" 
@@ -491,6 +500,8 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold">Peso</label>
                                     <input 
                                         type="number" 
+                                        inputMode="decimal"
+                                        pattern="[0-9]*[.,]?[0-9]*"
                                         value={weight}
                                         onChange={e => setWeight(e.target.value)}
                                         className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-2xl font-bold text-center text-white focus:border-emerald-500 outline-none placeholder-zinc-700" 
@@ -501,6 +512,8 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold">Reps</label>
                                     <input 
                                         type="number" 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                         value={reps}
                                         onChange={e => setReps(e.target.value)}
                                         placeholder={exercise.lastReps || "10"}
@@ -519,6 +532,8 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                                         <label className="text-[10px] text-zinc-500 uppercase font-bold">Peso 2</label>
                                         <input 
                                             type="number" 
+                                            inputMode="decimal"
+                                            pattern="[0-9]*[.,]?[0-9]*"
                                             value={weight2}
                                             onChange={e => setWeight2(e.target.value)}
                                             className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-2xl font-bold text-center text-white focus:border-blue-500 outline-none placeholder-zinc-700" 
@@ -529,6 +544,8 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
                                         <label className="text-[10px] text-zinc-500 uppercase font-bold">Reps 2</label>
                                         <input 
                                             type="number" 
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             value={reps2}
                                             onChange={e => setReps2(e.target.value)}
                                             placeholder="10"
@@ -601,6 +618,8 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
                             <label className="text-zinc-400 block mb-2 text-sm font-bold">⏱️ Duración Real (minutos)</label>
                             <input 
                                 type="number" 
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={manualDuration}
                                 onChange={e => setManualDuration(e.target.value)}
                                 className="w-full bg-black border border-zinc-700 p-4 rounded-xl text-white text-2xl text-center placeholder-zinc-700 font-bold"
@@ -633,6 +652,8 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
                                     <label className="text-zinc-500 text-xs font-bold uppercase">Minutos</label>
                                     <input 
                                         type="number" 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                         value={cardioTime}
                                         onChange={e => setCardioTime(e.target.value)}
                                         className="w-full bg-black border p-3 rounded-xl text-white text-xl placeholder-zinc-700"
