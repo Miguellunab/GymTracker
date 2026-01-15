@@ -15,10 +15,10 @@ async function buildCoachContext(prisma) {
   const start14 = new Date(now);
   start14.setDate(start14.getDate() - 14);
 
-  const start30 = new Date(now);
-  start30.setDate(start30.getDate() - 30);
+  const start60 = new Date(now);
+  start60.setDate(start60.getDate() - 60);
 
-  const [sessionsLast7, lastSession, recentMax, prevMax, sessionsLast30] = await Promise.all([
+  const [sessionsLast7, lastSession, recentMax, prevMax, sessionsLast60] = await Promise.all([
     prisma.workoutSession.findMany({
       where: { date: { gte: start7 } },
       select: { date: true, didCardio: true, routineName: true }
@@ -38,7 +38,7 @@ async function buildCoachContext(prisma) {
       _max: { weight: true }
     }),
     prisma.workoutSession.findMany({
-      where: { date: { gte: start30 } },
+      where: { date: { gte: start60 } },
       orderBy: { date: 'asc' },
       select: { date: true, routineName: true, didCardio: true }
     })
@@ -78,12 +78,12 @@ async function buildCoachContext(prisma) {
     : 'Cardio últimos 7 días: sin sesiones registradas.';
 
   const sessionMap = new Map(
-    sessionsLast30.map((s) => [new Date(s.date).toISOString().slice(0, 10), s])
+    sessionsLast60.map((s) => [new Date(s.date).toISOString().slice(0, 10), s])
   );
   const calendarLines = [];
-  for (let i = 0; i <= 30; i += 1) {
-    const day = new Date(start30);
-    day.setDate(start30.getDate() + i);
+  for (let i = 0; i <= 60; i += 1) {
+    const day = new Date(start60);
+    day.setDate(start60.getDate() + i);
     const dateStr = day.toISOString().slice(0, 10);
     const label = day.toLocaleDateString('es-ES', { weekday: 'long' });
     const entry = sessionMap.get(dateStr);
@@ -99,7 +99,7 @@ async function buildCoachContext(prisma) {
     cardioLine,
     lastSessionLine,
     progressLine,
-    'Calendario últimos 30 días:',
+    'Calendario últimos 60 días:',
     ...calendarLines
   ].join('\n');
 }
@@ -124,6 +124,7 @@ export async function POST(request) {
 Reglas:
 - Usa el calendario del contexto para responder preguntas sobre días específicos.
 - Si te preguntan por una fecha, busca esa fecha exacta en el calendario (YYYY-MM-DD) y responde con lo que dice ahí.
+- Si te dicen "lunes 12" o "viernes 12", asume el mes y año actuales y responde por esa fecha si existe en el calendario.
 - Si no hay sesión registrada, dilo explícitamente.
 
 Contexto del atleta:

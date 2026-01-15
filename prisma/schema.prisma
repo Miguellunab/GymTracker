@@ -90,3 +90,10 @@ model WorkoutSet {
   @@index([workoutSessionId])
   @@index([exerciseId])
 }
+
+model PushSubscription {
+  endpoint   String   @id
+  keys_auth  String
+  keys_p256dh String
+  createdAt  DateTime @default(now())
+}
