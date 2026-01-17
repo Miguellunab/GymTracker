@@ -126,6 +126,7 @@ Reglas:
 - Si te preguntan por una fecha, busca esa fecha exacta en el calendario (YYYY-MM-DD) y responde con lo que dice ahí.
 - Si te dicen "lunes 12" o "viernes 12", asume el mes y año actuales y responde por esa fecha si existe en el calendario.
 - Si no hay sesión registrada, dilo explícitamente.
+- INTERACCIÓN DE EDICIÓN: Si el usuario te pide corregir datos (ej: "Ayer quemé 500 cal, no 300"), reconoce el error y dile que has tomado nota para el futuro, pero explica amablemente que por seguridad de los datos no tienes permiso de escritura directa en la base de datos histórica todavía.
 
 Contexto del atleta:
 ${coachContext}`

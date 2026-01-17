@@ -126,7 +126,8 @@ export default function HistoryPage() {
                                  <h3 className="text-white font-bold text-lg">{session.routineName}</h3>
                                  <div className="flex items-center gap-2 text-zinc-500 text-xs mt-1">
                                      <Calendar className="w-3 h-3" />
-                                     {new Date(session.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
+                                     {/* Display date with timezone fix */}
+                                     {new Date(new Date(session.date).getTime() + new Date(session.date).getTimezoneOffset() * 60000).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
                                  </div>
                              </div>
                              

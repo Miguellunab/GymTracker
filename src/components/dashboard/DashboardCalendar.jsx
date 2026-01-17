@@ -54,6 +54,12 @@ export default function DashboardCalendar({ selectedDate, onSelectDate }) { // r
     // Helper to refresh from outside if needed (could export context, but simple reload works for now)
     
     const handleDayClick = (date) => {
+        // Prevent editing future dates (only allow selection/navigation)
+        if (date > new Date()) {
+            if(onSelectDate) onSelectDate(date);
+            return;
+        }
+
         setModalDate(date);
         setShowStatusModal(true);
         // also propagate selection

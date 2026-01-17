@@ -1,0 +1,23 @@
+{
+  "status": "init",
+  "scope": "codebase",
+  "type": "frontend",
+  "localEndpoint": "http://localhost:3000/",
+  "serverPort": 59300,
+  "executionArgs": {
+    "projectName": "GymTracker",
+    "projectPath": "C:\\Users\\migue\\Downloads\\GYM\\GymTracker",
+    "testIds": [
+      "TC001",
+      "TC002",
+      "TC003",
+      "TC004",
+      "TC005"
+    ],
+    "additionalInstruction": "Tests to be implemented using Playwright. Ensure all tests handle asynchronous operations correctly and use proper waiting mechanisms. Verify database interactions where applicable.",
+    "envs": {
+      "API_KEY": "sk-user-vygArjRiktJ2s2mp853rnZyojTeoQztIDZpnXxwRjrhjjIHIoDUcDTEZf7RiFCV3dpynIg9AXLfXiMktKMlTi_OjzdmUmsyJV6D3jfXtVlaOSFJFlr3N1fLjLM87Ek7-TNA"
+    }
+  },
+  "proxy": "http://ac48730a-f216-44fa-9468-87f08368eae6:KfKGlD9aU04bT5pQx5MA3v2nMo9ADkIS@tun.testsprite.com:8080"
+}

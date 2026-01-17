@@ -37,7 +37,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
     return (
-        <html lang="en">
+        <html lang="es">
             <body className={`${inter.variable} ${outfit.variable} antialiased bg-black text-white` }>
                 <div className="mx-auto max-w-3xl px-4 sm:px-6">
                     <main>

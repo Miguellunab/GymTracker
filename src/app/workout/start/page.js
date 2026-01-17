@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
 import { MuscleMap } from '@/components/visualization/MuscleMap';
 import { GifModal, GifChip } from '@/components/media/GifModal';
+import { PostWorkoutFeedback } from '@/components/coach/PostWorkoutFeedback';
+
+import { AIWorkoutLogger } from '@/components/workouts/AIWorkoutLogger';
 
 const EXERCISE_ID_OVERRIDE = {
     // Override map for spanish slugs -> specific exercise-db IDs
@@ -65,8 +68,15 @@ const EXERCISE_ID_OVERRIDE = {
     'curl-martillo': 'Hammer_Curls',
     'press-frances': 'Lying_Triceps_Press',
     'extension-triceps': 'Triceps_Pushdown',
-    'elevaciones-laterales': 'Dumbbell_Lateral_Raise',
+    'elevaciones-laterales': 'Side_Lateral_Raise',
     'elevaciones-posteriores': 'Bent_Over_Low-Pulley_Side_Lateral',
+    
+    // New Exercises
+    'press-de-banca-plano': 'Barbell_Bench_Press_-_Medium_Grip',
+    'cruces-en-polea-alta': 'Cable_Crossover',
+    'fondos-en-paralelas': 'Dips_-_Chest_Version',
+    'pullover-con-mancuerna': 'Bent-Arm_Dumbbell_Pullover',
+    'dominadas': 'Pullups',
 };
 
 // Map to V2 API image names (for higher quality images with muscle highlighting)
@@ -93,7 +103,7 @@ const EXERCISE_V2_IMAGE_MAP = {
     'Lying_Triceps_Press': 'Barbell-Lying-Triceps-Extension-Triceps',
     'Incline_Dumbbell_Curl': 'Dumbbell-Incline-Curl-Biceps',
     'Hammer_Curls': 'Dumbbell-Hammer-Curl-Biceps',
-    'Dumbbell_Lateral_Raise': 'Dumbbell-Lateral-Raise-Shoulders',
+    'Side_Lateral_Raise': 'Dumbbell-Lateral-Raise-Shoulders',
 };
 
 const slugify = (value = '') =>
@@ -117,6 +127,7 @@ function WorkoutRunner() {
     const [workoutData, setWorkoutData] = useState({}); 
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [gifModal, setGifModal] = useState({ open: false, title: '', url: '', source: '', imageUrls: null });
+    const [useAI, setUseAI] = useState(false); // Toggle for new AI flow
     const exerciseDbRef = useRef(null);
     const dbPromiseRef = useRef(null);
     
@@ -176,13 +187,98 @@ function WorkoutRunner() {
                     durationSeconds: Math.floor((Date.now() - startTime) / 1000)
                 })
             });
-            router.push('/');
+            // Don't redirect immediately, let the feedback show
+            // router.push('/'); 
         } catch (e) {
             alert("Error saving workout");
         }
     };
 
+
+    const handleAIComplete = async (analysisData) => {
+        // Transform AI data to match existing submission format
+        // The AI logger handles the "what did I do", but we need to format it for the DB
+        // However, the AI logger currently keeps state internally. 
+        // We might need to pass the actual workout data back up or handle submission inside the component.
+        // For now, let's assume the AI component does the heavy lifting of gathering data
+        // and returns the summarized stats + raw logs.
+        
+        // Actually, let's make the AI component return everything needed to save.
+        // But wait, the prompt asked for the AI to *upload* it.
+        // "necesito que la IA haga ese proceso de hacer el archivo JSON para que se ejecute en mi web y se suba la info a la base de datos"
+        
+        // In this architecture, the frontend calls the API. 
+        // So the AI endpoint returns the calculated stats, and THIS component saves it to the DB.
+        
+        try {
+            // We need to construct the workoutData object from what the AI Logger gathered
+            // But the AI Logger in my implementation above was self-contained.
+            // Let's adjust the implementation to pass data back or submit directly.
+            
+            // Re-reading: "quiero que la me pregunte ... y luego ... prompt a la IA ... y automaticamente se suba ese resultado"
+            
+            // So:
+            // 1. User answers questions in AIWorkoutLogger
+            // 2. AIWorkoutLogger calls /api/coach/analyze-workout
+            // 3. That returns calories/duration
+            // 4. We combine that with the logs and save using existing /api/workouts
+            
+            // To do this cleanly, I'll modify AIWorkoutLogger to return { analysis, logs, cardio } onComplete
+            
+            const { analysis, logs, cardio, feedback } = analysisData;
+            
+            const submitPayload = {
+                routineName,
+                workoutData: logs, // Need to ensure format matches: { exerciseId: [{weight, reps, ...}] }
+                didCardio: cardio.didCardio,
+                cardioMinutes: cardio.minutes,
+                cardioIntensity: cardio.intensity,
+                notes: feedback,
+                durationSeconds: analysis.durationSeconds,
+                totalCalories: analysis.totalCalories
+            };
+
+            await fetch('/api/workouts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...submitPayload,
+                    date: searchParams.get('date'),
+                })
+            });
+            
+            router.push('/');
+            
+        } catch (e) {
+            console.error("AI Save Error", e);
+            alert("Error guardando el entreno con IA");
+        }
+    };
+
     if (loading) return <div className="min-h-screen bg-black text-white p-10">Cargando rutina...</div>;
+    
+    // Intercept with AI Flow if requested or strictly enforced (User said "quiero cambiar el funcionamiento")
+    // Let's make it the default but maybe keep a fallback or just swap the render entirely.
+    // The user said "cuando escoja que entrenar ... en ese momento quiero que la me pregunte"
+    // So this replaces the standard tracking UI.
+    
+    // But wait, "Pecho/Espalda sera como para tener el registro en el calendario" implies they select the routine FIRST.
+    // We are already on the page with the routine selected (routineName param).
+    
+    // So we render the AI Logger instead of the standard list?
+    // "quiero que la me pregunte entre todos los ejercicios que tengo, cuales hice"
+    
+    if (true) { // Force AI Mode for now based on request "quiero hacer un cambio gigante"
+        return (
+            <div className="min-h-screen bg-black p-4">
+                <AIWorkoutLogger 
+                    routineName={routineName}
+                    exercises={exercises}
+                    onComplete={handleAIComplete}
+                />
+            </div>
+        );
+    }
 
     const activeMuscles = exercises.map((ex) => ex.muscle).filter(Boolean);
 
@@ -571,11 +667,14 @@ function ExerciseCard({ exercise, isExpanded, onToggle, sets, onSaveSet, onNext,
 }
 
 function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userWeight }) {
+    const router = useRouter(); // Need router for dismiss action
     const [didCardio, setDidCardio] = useState(false);
     const [cardioTime, setCardioTime] = useState(''); 
     const [intensity, setIntensity] = useState('Medium');
     const [step, setStep] = useState(1);
     const [manualDuration, setManualDuration] = useState(Math.floor(durationSeconds / 60).toString());
+    const [savedData, setSavedData] = useState(null); // Track if saved to show feedback
+    const [isSaving, setIsSaving] = useState(false);
     
     const calculateCalories = () => {
         // Usar duración manual ingresada por el usuario
@@ -695,18 +794,46 @@ function PostWorkoutModal({ onClose, onSave, routineName, durationSeconds, userW
                         <p className="text-zinc-500 text-sm mb-2">{manualDuration} min de entrenamiento</p>
                         <p className="text-zinc-500 text-sm mb-8">Gran trabajo hoy, campeón.</p>
 
-                        <BigButton onClick={() => onSave({ 
-                            didCardio, 
-                            cardioMinutes: cardioTime, 
-                            cardioIntensity: intensity, 
-                            totalCalories: calculateCalories(),
-                            durationSeconds: Number(manualDuration) * 60 // Guardar duración manual
-                        })}>
-                            GUARDAR WORKOUT
-                        </BigButton>
-                         <button onClick={() => setStep(1)} className="mt-4 text-sm text-zinc-500 underline">
-                            Volver
-                        </button>
+                        {!savedData ? (
+                            <>
+                                <BigButton 
+                                    disabled={isSaving}
+                                    className={isSaving ? "opacity-50 cursor-not-allowed" : ""}
+                                    onClick={async () => {
+                                    if(isSaving || savedData) return; // Prevent double clicks
+                                    setIsSaving(true);
+                                    
+                                    const data = { 
+                                        didCardio, 
+                                        cardioMinutes: cardioTime, 
+                                        cardioIntensity: intensity, 
+                                        totalCalories: calculateCalories(),
+                                        durationSeconds: Number(manualDuration) * 60 
+                                    };
+                                    // Invalidate daily tip cache so dashboard updates
+                                    try {
+                                        const today = new Date().toISOString().slice(0, 10);
+                                        localStorage.removeItem(`coach_tip_${today}`);
+                                    } catch(e) {}
+
+                                    await onSave(data);
+                                    setSavedData(data); // Trigger feedback view
+                                    setIsSaving(false);
+                                }}>
+                                    {isSaving ? "GUARDANDO..." : "GUARDAR WORKOUT"}
+                                </BigButton>
+                                <button onClick={() => setStep(1)} className="mt-4 text-sm text-zinc-500 underline">
+                                    Volver
+                                </button>
+                            </>
+                        ) : (
+                            <PostWorkoutFeedback 
+                                routineName={routineName}
+                                durationSeconds={savedData.durationSeconds}
+                                totalCalories={savedData.totalCalories}
+                                onDismiss={() => router.push('/')}
+                            />
+                        )}
                     </div>
                 )}
             </div>
