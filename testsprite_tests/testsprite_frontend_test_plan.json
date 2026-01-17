@@ -1,0 +1,288 @@
+[
+  {
+    "id": "TC001",
+    "title": "Dashboard Daily Routine and Calendar Display",
+    "description": "Verify that the dashboard displays the correct daily routine suggestions and calendar status with AI integration.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the Dashboard page."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that the daily routine suggestions correspond to the user's predefined workout plan."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the calendar status displays the correct scheduled days and highlights today."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that AI-generated tips or routine adjustments are visible and pertinent."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Standard Workout Logging with Sets, Reps, and Weight",
+    "description": "Verify users can manually log workouts including sets, reps, and weight details properly and data is saved correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to workout start page and select Standard logging mode."
+      },
+      {
+        "type": "action",
+        "description": "Select a workout routine category (e.g., Chest)."
+      },
+      {
+        "type": "action",
+        "description": "Manually input exercise name, sets, reps, and weight."
+      },
+      {
+        "type": "action",
+        "description": "Submit the workout log."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the workout data is saved and persisted in the database accurately."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the workout summary displays correct duration and calories burned estimate."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "AI-assisted Workout Logging and Feedback",
+    "description": "Verify AI-assisted logging mode offers interactive workout assistance, logs exercises, and provides meaningful feedback post-workout.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to workout start page and select AI-assisted logging mode."
+      },
+      {
+        "type": "action",
+        "description": "Follow AI prompts to perform and log exercises."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify exercises are logged automatically with correct sets, reps, and weights."
+      },
+      {
+        "type": "assertion",
+        "description": "Upon workout completion, confirm AI feedback is displayed including intensity and tips."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Routine Management: Create, Modify, and Retrieve Workout Routines",
+    "description": "Ensure users can create new routines, modify existing ones, and retrieve all routines categorized properly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open routine management interface."
+      },
+      {
+        "type": "action",
+        "description": "Create a new workout routine with multiple exercises under a valid category."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new routine is saved correctly and appears in the routine list."
+      },
+      {
+        "type": "action",
+        "description": "Modify an existing routine by adding and removing exercises."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm modifications are persisted and reflected in routine retrieval."
+      },
+      {
+        "type": "action",
+        "description": "Retrieve the list of routines filtered by categories like Chest, Back, Legs, Arms."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that retrieved routines match the selected category and structure."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "AI Coach Daily Tip Display and Interaction",
+    "description": "Verify daily AI-generated fitness tips display correctly and interactive chat with AI coach provides personalized advice.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to AI Coach daily tip section on the dashboard."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the daily tip loads correctly and is updated each day."
+      },
+      {
+        "type": "action",
+        "description": "Open AI Coach chat interface and submit fitness-related questions."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the AI Coach responds promptly with relevant and coherent advice."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "User Workout History and Profile Data Accuracy",
+    "description": "Verify that workout history properly reflects all logged workouts and user profile data updates and displays correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to workout history page."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all past workouts show correct dates, exercises, sets, reps, and weights."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to user profile page and update personal settings and preferences."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm updates are saved and accurately reflected upon page reload."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Workout Timer Functionality: Start, Stop, Reset",
+    "description": "Verify the integrated workout timer starts, stops, pauses, and resets correctly, supporting workout pacing and rest intervals.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to a workout session with timer available."
+      },
+      {
+        "type": "action",
+        "description": "Start the timer."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the timer counts time accurately."
+      },
+      {
+        "type": "action",
+        "description": "Stop/pause the timer."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the timer pauses and freezes the time count."
+      },
+      {
+        "type": "action",
+        "description": "Restart and then reset the timer."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm timer returns to zero upon reset."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Error Handling When Retrieving Non-existent Routine",
+    "description": "Verify appropriate error messages are shown when attempting to retrieve a routine that does not exist.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Request retrieval of a routine using an invalid or non-existent routine ID."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the system returns an error response with a user-friendly error message."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the UI handles the error gracefully without crashing."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Validation of Workout Input Data Fields",
+    "description": "Ensure input fields for sets, reps, and weights accept only valid numerical values and handle invalid inputs properly.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to input negative numbers, zero, excessively large numbers, and non-numeric characters into the sets, reps, and weight fields."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inputs are rejected or sanitized and user is prompted with appropriate validation messages."
+      },
+      {
+        "type": "action",
+        "description": "Input valid positive numeric values and submit workout log."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm successful submission without validation errors."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Responsive UI Test on Different Devices",
+    "description": "Verify the GymTracker UI maintains usability and consistency on a range of device resolutions including desktop, tablet, and mobile phones.",
+    "category": "ui",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Load the application on desktop screen resolution."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm all UI elements display correctly and are usable."
+      },
+      {
+        "type": "action",
+        "description": "Load the application on tablet screen resolution."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify layout adjusts appropriately and remains fully functional."
+      },
+      {
+        "type": "action",
+        "description": "Load the application on mobile phone screen resolution."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the UI is responsive, all functional controls are accessible and user can execute core flows without issues."
+      }
+    ]
+  }
+]

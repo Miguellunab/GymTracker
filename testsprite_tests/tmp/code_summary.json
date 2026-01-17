@@ -1,0 +1,71 @@
+{
+  "tech_stack": [
+    "JavaScript",
+    "Next.js",
+    "React",
+    "PostgreSQL",
+    "Prisma",
+    "Tailwind CSS",
+    "Groq SDK"
+  ],
+  "features": [
+    {
+      "name": "Dashboard",
+      "description": "Main user dashboard showing daily routine and calendar status.",
+      "files": [
+        "src/components/dashboard/DayRoutineCard.jsx",
+        "src/components/dashboard/DashboardCalendar.jsx",
+        "src/app/page.js"
+      ]
+    },
+    {
+      "name": "Workout Tracking",
+      "description": "Core functionality for tracking workouts, including sets, reps, and weight. Supports standard and AI-assisted logging.",
+      "files": [
+        "src/app/workout/start/page.js",
+        "src/components/workouts/AIWorkoutLogger.jsx",
+        "src/app/api/workouts/route.js"
+      ]
+    },
+    {
+      "name": "AI Coach",
+      "description": "AI-powered personal coach providing daily tips, workout feedback, and chat interface.",
+      "files": [
+        "src/components/coach/DailyCoachTip.jsx",
+        "src/components/coach/AICoachShell.jsx",
+        "src/components/coach/PostWorkoutFeedback.jsx",
+        "src/app/api/coach/daily/route.js",
+        "src/app/api/coach/analyze-workout/route.js",
+        "src/app/api/coach/feedback/route.js"
+      ]
+    },
+    {
+      "name": "Routine Management",
+      "description": "System for defining and retrieving workout routines and exercises.",
+      "files": [
+        "src/app/api/routines/route.js",
+        "src/app/api/routines/list/route.js",
+        "prisma/seed.js",
+        "prisma/schema.prisma"
+      ]
+    },
+    {
+      "name": "User History & Profile",
+      "description": "Views for past workout history and user profile management.",
+      "files": [
+        "src/app/history/page.js",
+        "src/app/profile/page.js",
+        "src/app/stats/page.js"
+      ]
+    },
+    {
+      "name": "Timer",
+      "description": "Workout timer with start/stop/reset functionality.",
+      "files": [
+        "src/components/timer/TimerWidget.jsx",
+        "src/hooks/useTimerEngine.js",
+        "src/app/api/timer/trigger/route.js"
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { MOCK_ROUTINES } from '@/lib/data';
 import { History, TrendingUp, Scale, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { AICoachTrigger } from '@/components/coach/AICoachTrigger';
+import { DailyCoachTip } from '@/components/coach/DailyCoachTip';
 
 export default function HomePage() {
   const [date, setDate] = useState(new Date());
@@ -34,18 +35,29 @@ export default function HomePage() {
       </header>
 
       {/* Calendar Strip */}
-      <section className="mb-8">
+      <section className="mb-4">
          <DashboardCalendar 
             selectedDate={date} 
             onSelectDate={setDate}
          />
       </section>
 
+      {/* Daily Coach Tip */}
+      <section className="px-4 mb-6">
+          <DailyCoachTip date={date} />
+      </section>
+
       {/* Main Action Card */}
       <section className="mb-8">
          <DayRoutineCard 
+            selectedDate={date}
             dayName={format(date, 'EEEE', { locale: enUS })}
             routineName={routine?.name}
+            onAdvanceDate={() => {
+                const nextDay = new Date(date);
+                nextDay.setDate(nextDay.getDate() + 1);
+                setDate(nextDay);
+            }}
          />
       </section>
 
