@@ -1,110 +1,81 @@
 /**
  * Handler del Timer de Descanso
- * Lógica de countdown y notificaciones
+ * 
+ * NOTA: En Vercel serverless los setTimeout no persisten entre requests.
+ * Solución: Mostrar hora de finalización y verificar en cada interacción.
  */
 
-import { sendMessage, editMessage, deleteMessage } from '../telegram.js';
-import { MESSAGES, REST_TIMES, EMOJI } from '../constants.js';
-import { setTimerRef, clearTimer, getTimerRef, hasActiveTimer, getState } from '../state.js';
-import { getTimerCancelKeyboard } from '../keyboards/inline.js';
+import { sendMessage } from '../telegram.js';
+import { EMOJI } from '../constants.js';
+import { getState, updateData } from '../state.js';
 
-// Almacén de timers activos (en memoria)
-const activeTimers = new Map();
+// Zona horaria Colombia (UTC-5)
+const TIMEZONE = 'America/Bogota';
+
+/**
+ * Formatea hora en zona horaria de Colombia
+ */
+function formatTime(date) {
+  return date.toLocaleTimeString('es-CO', { 
+    timeZone: TIMEZONE,
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true 
+  });
+}
 
 /**
  * Inicia un timer de descanso
  */
 export async function startTimer(chatId, minutes) {
-  // Cancelar timer existente si hay uno
-  if (hasActiveTimer(chatId)) {
-    await cancelTimer(chatId);
-  }
+  const now = new Date();
+  const endTime = new Date(now.getTime() + (minutes * 60 * 1000));
   
-  const seconds = minutes * 60;
-  const endTime = Date.now() + (seconds * 1000);
-  
-  // Enviar mensaje inicial con botón de cancelar
-  const initialMsg = await sendMessage(chatId, formatTimerMessage(seconds), {
-    reply_markup: {
-      inline_keyboard: getTimerCancelKeyboard()
+  // Guardar en estado
+  updateData(chatId, { 
+    activeTimer: {
+      endTime: endTime.toISOString(),
+      minutes: minutes,
+      startTime: now.toISOString()
     }
   });
   
-  if (!initialMsg) return false;
+  const endTimeStr = formatTime(endTime);
   
-  const messageId = initialMsg.message_id;
+  const message = `${EMOJI.TIMER} *Timer de ${minutes} minutos iniciado*
+
+⏰ Termina a las: *${endTimeStr}*
+
+_Te avisaré cuando interactúes con el bot. Puedes seguir usándolo normalmente._`;
   
-  // Crear el timer
-  const timerData = {
-    chatId,
-    messageId,
-    endTime,
-    intervalId: null,
-    timeoutId: null,
-  };
-  
-  // Actualizar cada 30 segundos
-  timerData.intervalId = setInterval(async () => {
-    const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
-    
-    if (remaining > 0) {
-      await editMessage(chatId, messageId, formatTimerMessage(remaining), {
-        reply_markup: {
-          inline_keyboard: getTimerCancelKeyboard()
-        }
-      });
-    }
-  }, 30000);
-  
-  // Timer para el final
-  timerData.timeoutId = setTimeout(async () => {
-    // Limpiar intervalo
-    if (timerData.intervalId) {
-      clearInterval(timerData.intervalId);
-    }
-    
-    // Eliminar de activos
-    activeTimers.delete(chatId);
-    clearTimer(chatId);
-    
-    // Editar mensaje final
-    await editMessage(chatId, messageId, `${EMOJI.BELL} *Timer completado*`);
-    
-    // Enviar notificación sonora (mensaje nuevo para que suene)
-    await sendMessage(chatId, MESSAGES.TIMER_FINISHED, {
-      disable_notification: false, // Asegurar que suene
-    });
-    
-  }, seconds * 1000);
-  
-  // Guardar referencia
-  activeTimers.set(chatId, timerData);
-  setTimerRef(chatId, timerData, messageId);
+  await sendMessage(chatId, message);
   
   return true;
 }
 
 /**
- * Cancela un timer activo
+ * Verifica si hay un timer activo y si ya terminó
+ * Llamar esto en cada interacción del usuario
  */
-export async function cancelTimer(chatId) {
-  const timerData = activeTimers.get(chatId);
+export async function checkAndNotifyTimer(chatId) {
+  const state = getState(chatId);
+  const timer = state.data?.activeTimer;
   
-  if (timerData) {
-    // Limpiar intervalos
-    if (timerData.intervalId) {
-      clearInterval(timerData.intervalId);
-    }
-    if (timerData.timeoutId) {
-      clearTimeout(timerData.timeoutId);
-    }
+  if (!timer) return false;
+  
+  const endTime = new Date(timer.endTime);
+  const now = new Date();
+  
+  if (now >= endTime) {
+    // Timer terminó - notificar
+    updateData(chatId, { activeTimer: null });
     
-    // Editar mensaje
-    await editMessage(chatId, timerData.messageId, `${EMOJI.TIMER} Timer cancelado`);
-    
-    // Limpiar
-    activeTimers.delete(chatId);
-    clearTimer(chatId);
+    await sendMessage(chatId, `${EMOJI.BELL} *¡DESCANSO TERMINADO!*
+
+Han pasado ${timer.minutes} minutos. ¡Hora de la siguiente serie! 💪`, {
+      disable_notification: false
+    });
     
     return true;
   }
@@ -113,57 +84,66 @@ export async function cancelTimer(chatId) {
 }
 
 /**
- * Formatea el mensaje del timer
+ * Cancela un timer activo
  */
-function formatTimerMessage(totalSeconds) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+export async function cancelTimer(chatId) {
+  const state = getState(chatId);
+  const timer = state.data?.activeTimer;
   
-  // Barra de progreso visual
-  const progressBar = createProgressBar(totalSeconds);
+  if (timer) {
+    updateData(chatId, { activeTimer: null });
+    await sendMessage(chatId, `${EMOJI.TIMER} Timer cancelado.`);
+    return true;
+  }
   
-  return `${EMOJI.TIMER} *Descanso*\n\n\`${timeStr}\`\n\n${progressBar}`;
+  await sendMessage(chatId, `No hay timer activo.`);
+  return false;
 }
 
 /**
- * Crea una barra de progreso visual
+ * Verifica si hay un timer activo
  */
-function createProgressBar(remainingSeconds) {
-  // Asumimos max 5 min = 300 seg
-  const maxSeconds = 300;
-  const percentage = Math.min(100, (remainingSeconds / maxSeconds) * 100);
-  const filledBlocks = Math.round(percentage / 10);
-  const emptyBlocks = 10 - filledBlocks;
+export function hasActiveTimer(chatId) {
+  const state = getState(chatId);
+  return state.data?.activeTimer != null;
+}
+
+/**
+ * Obtiene info del timer activo
+ */
+export function getTimerInfo(chatId) {
+  const state = getState(chatId);
+  const timer = state.data?.activeTimer;
   
-  return '`[' + '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks) + ']`';
-}
-
-/**
- * Verifica si hay un timer activo para un chat
- */
-export function hasTimer(chatId) {
-  return activeTimers.has(chatId);
-}
-
-/**
- * Obtiene el tiempo restante de un timer
- */
-export function getRemainingTime(chatId) {
-  const timerData = activeTimers.get(chatId);
-  if (!timerData) return null;
+  if (!timer) return null;
   
-  const remaining = Math.max(0, Math.ceil((timerData.endTime - Date.now()) / 1000));
-  return remaining;
+  const endTime = new Date(timer.endTime);
+  const now = new Date();
+  const remainingMs = endTime - now;
+  
+  if (remainingMs <= 0) {
+    return { finished: true, remaining: 0 };
+  }
+  
+  const remainingSec = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(remainingSec / 60);
+  const seconds = remainingSec % 60;
+  
+  return {
+    finished: false,
+    remaining: remainingSec,
+    remainingFormatted: `${minutes}:${seconds.toString().padStart(2, '0')}`,
+    endTimeFormatted: formatTime(endTime)
+  };
 }
 
 /**
- * Handler para botón de timer desde callback
+ * Handler para callback de timer
  */
-export async function handleTimerCallback(chatId, action, callbackQueryId) {
+export async function handleTimerCallback(chatId, action) {
   if (action === 'timer_cancel') {
-    const cancelled = await cancelTimer(chatId);
-    return cancelled ? 'Timer cancelado' : 'No hay timer activo';
+    await cancelTimer(chatId);
+    return 'Timer cancelado';
   }
   
   // Parsear minutos del callback (timer_3, timer_4, timer_5)
@@ -195,8 +175,9 @@ export async function handleCustomTimer(chatId, minutesText) {
 export default {
   startTimer,
   cancelTimer,
-  hasTimer,
-  getRemainingTime,
+  checkAndNotifyTimer,
+  hasActiveTimer,
+  getTimerInfo,
   handleTimerCallback,
   handleCustomTimer,
 };

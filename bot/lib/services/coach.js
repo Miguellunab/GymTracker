@@ -1,6 +1,6 @@
 /**
  * Servicio de Coach AI
- * Integración con Groq para consejos y análisis
+ * Integración con Groq para consejos, análisis y MODIFICACIÓN de entrenamientos
  */
 
 import Groq from 'groq-sdk';
@@ -14,12 +14,86 @@ const groq = new Groq({
 
 const MODEL = 'llama-3.3-70b-versatile';
 
+// Zona horaria Colombia
+const TIMEZONE = 'America/Bogota';
+
+/**
+ * Obtiene fecha actual en Colombia
+ */
+function getColombiaDate() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
+}
+
+/**
+ * Formatea fecha para display
+ */
+function formatDate(date) {
+  return date.toLocaleDateString('es-CO', { timeZone: TIMEZONE });
+}
+
+/**
+ * Construye contexto del coach (similar a la web)
+ */
+async function buildCoachContext() {
+  const now = getColombiaDate();
+  const start7 = new Date(now);
+  start7.setDate(start7.getDate() - 7);
+  const start60 = new Date(now);
+  start60.setDate(start60.getDate() - 60);
+
+  const [sessionsLast7, lastSession, sessionsLast60] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { date: { gte: start7 } },
+      select: { date: true, didCardio: true, routineName: true }
+    }),
+    prisma.workoutSession.findFirst({
+      orderBy: { date: 'desc' },
+      select: { date: true, routineName: true, didCardio: true, cardioMinutes: true }
+    }),
+    prisma.workoutSession.findMany({
+      where: { date: { gte: start60 } },
+      orderBy: { date: 'asc' },
+      select: { date: true, routineName: true, didCardio: true }
+    })
+  ]);
+
+  const cardioSessions = sessionsLast7.filter((s) => s.didCardio).length;
+
+  const lastSessionLine = lastSession
+    ? `Última sesión: ${new Date(lastSession.date).toISOString().slice(0, 10)} (${lastSession.routineName ?? 'Sin nombre'}).`
+    : 'Última sesión: no hay registros.';
+
+  const sessionMap = new Map(
+    sessionsLast60.map((s) => [new Date(s.date).toISOString().slice(0, 10), s])
+  );
+  
+  const calendarLines = [];
+  for (let i = 0; i <= 60; i += 1) {
+    const day = new Date(start60);
+    day.setDate(start60.getDate() + i);
+    const dateStr = day.toISOString().slice(0, 10);
+    const label = day.toLocaleDateString('es-CO', { weekday: 'long', timeZone: TIMEZONE });
+    const entry = sessionMap.get(dateStr);
+    const title = entry?.routineName ?? 'Sin sesión';
+    const cardioTag = entry?.didCardio ? ' (cardio)' : '';
+    calendarLines.push(`${dateStr} (${label}): ${title}${cardioTag}`);
+  }
+
+  return [
+    `Fecha actual (Colombia): ${now.toISOString().slice(0, 10)}.`,
+    `Sesiones últimos 7 días: ${sessionsLast7.length}.`,
+    `Cardio últimos 7 días: ${cardioSessions} sesiones.`,
+    lastSessionLine,
+    'Calendario últimos 60 días:',
+    ...calendarLines
+  ].join('\n');
+}
+
 /**
  * Obtiene el consejo diario del coach
  */
 export async function getDailyTip() {
   try {
-    // Obtener historial reciente
     const recentWorkouts = await prisma.workoutSession.findMany({
       take: 10,
       orderBy: { date: 'desc' },
@@ -32,8 +106,7 @@ export async function getDailyTip() {
       }
     });
     
-    // Verificar si ya entrenó hoy
-    const today = new Date();
+    const today = getColombiaDate();
     today.setHours(0, 0, 0, 0);
     const trainedToday = recentWorkouts.some(w => {
       const workoutDate = new Date(w.date);
@@ -43,12 +116,11 @@ export async function getDailyTip() {
     
     if (trainedToday) {
       return {
-        message: 'Ya entrenaste hoy. Enfocate en la recuperacion: buena alimentacion, hidratacion y descanso.',
+        message: 'Ya entrenaste hoy. Enfócate en la recuperación: buena alimentación, hidratación y descanso.',
         action: 'Recuperacion'
       };
     }
     
-    // Analizar patrones
     const consecutiveDays = countConsecutiveTrainingDays(recentWorkouts);
     const lastRoutines = recentWorkouts
       .filter(w => w.routineName !== 'Descanso')
@@ -58,12 +130,12 @@ export async function getDailyTip() {
     const systemPrompt = `Eres un coach de gimnasio experto. Analiza el historial del usuario y da UN consejo breve y directo para hoy.
 
 Historial reciente:
-${recentWorkouts.map(w => `- ${new Date(w.date).toLocaleDateString('es')}: ${w.routineName}`).join('\n')}
+${recentWorkouts.map(w => `- ${formatDate(new Date(w.date))}: ${w.routineName}`).join('\n')}
 
-Dias consecutivos entrenando: ${consecutiveDays}
-Ultimas rutinas: ${lastRoutines.join(', ') || 'Ninguna'}
+Días consecutivos entrenando: ${consecutiveDays}
+Últimas rutinas: ${lastRoutines.join(', ') || 'Ninguna'}
 
-Responde en español, maximo 2-3 oraciones. Sugiere una rutina especifica o descanso segun corresponda.`;
+Responde en español, máximo 2-3 oraciones. Sugiere una rutina específica o descanso según corresponda.`;
 
     const response = await groq.chat.completions.create({
       model: MODEL,
@@ -77,12 +149,10 @@ Responde en español, maximo 2-3 oraciones. Sugiere una rutina especifica o desc
     
     const message = response.choices[0]?.message?.content || 'No pude generar un consejo.';
     
-    // Detectar acción sugerida
     let action = 'Entreno';
     if (message.toLowerCase().includes('descanso') || message.toLowerCase().includes('recupera')) {
       action = 'Descanso';
     } else {
-      // Buscar rutina mencionada
       const routines = ['Pecho', 'Espalda', 'Pierna', 'Brazos', 'Cuadriceps', 'Femoral'];
       for (const r of routines) {
         if (message.toLowerCase().includes(r.toLowerCase())) {
@@ -96,68 +166,129 @@ Responde en español, maximo 2-3 oraciones. Sugiere una rutina especifica o desc
   } catch (error) {
     console.error('Error getting daily tip:', error);
     return {
-      message: 'No pude conectar con el coach. Entrena lo que sientas!',
+      message: 'No pude conectar con el coach. ¡Entrena lo que sientas!',
       action: 'Error'
     };
   }
 }
 
 /**
- * Chat conversacional con el coach
+ * Chat conversacional con el coach - CON PERMISOS DE EDICIÓN/ELIMINACIÓN
  */
 export async function chatWithCoach(userMessage, conversationHistory = []) {
   try {
-    // Obtener contexto
-    const recentWorkouts = await prisma.workoutSession.findMany({
-      take: 7,
-      orderBy: { date: 'desc' },
-      include: {
-        sets: {
-          include: { exercise: true }
-        }
-      }
-    });
+    const coachContext = await buildCoachContext();
     
-    const lastWeight = await prisma.weightLog.findFirst({
-      orderBy: { date: 'desc' }
-    });
-    
-    const systemPrompt = `Eres Miguel, un coach de gimnasio amigable y motivador. Hablas en español informal.
+    const systemPrompt = `Eres AI Coach, un entrenador personal inteligente para GymTracker.
+
+CAPACIDADES:
+- Puedes MODIFICAR entrenamientos pasados si el usuario lo pide
+- Puedes ELIMINAR entrenamientos si el usuario lo solicita
+- Puedes responder preguntas sobre su progreso
+
+Responde SIEMPRE en formato JSON válido:
+{
+  "action": "UPDATE_SESSION" | "DELETE_SESSION" | "CHAT",
+  "targetDate": "YYYY-MM-DD",
+  "updates": {
+    "routineName": "string",
+    "didCardio": boolean,
+    "cardioMinutes": number,
+    "totalCalories": number,
+    "correctionReason": "string"
+  },
+  "message": "Texto que verá el usuario"
+}
+
+REGLAS:
+1. Si el usuario dice "cambia X a Y", "el entreno de ayer fue...", "modifica...", usa UPDATE_SESSION
+2. Si dice "elimina", "borra", "quita el entreno de...", usa DELETE_SESSION
+3. Para preguntas normales, usa CHAT
+4. targetDate debe ser formato YYYY-MM-DD
+5. "ayer" = fecha de ayer, "hoy" = fecha de hoy, "lunes" = último lunes, etc.
+6. Siempre confirma la acción en el mensaje
 
 CONTEXTO DEL USUARIO:
-- Fecha actual: ${new Date().toLocaleDateString('es')}
-- Ultimo peso: ${lastWeight ? `${lastWeight.weight} kg` : 'No registrado'}
-
-HISTORIAL RECIENTE (ultimos 7 dias):
-${recentWorkouts.map(w => {
-  const dateStr = new Date(w.date).toLocaleDateString('es');
-  const setsInfo = w.sets.length > 0 
-    ? `(${w.sets.length} series, ${w.totalCalories || 0} kcal)` 
-    : '';
-  return `- ${dateStr}: ${w.routineName} ${setsInfo}`;
-}).join('\n')}
-
-INSTRUCCIONES:
-- Responde de forma breve y directa (2-4 oraciones max)
-- Usa los datos del historial para personalizar respuestas
-- Si preguntan que entrenar, sugiere basado en lo que NO han hecho recientemente
-- Motiva pero se realista
-- NO uses emojis excesivos`;
+${coachContext}`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory.slice(-6), // Últimos 6 mensajes para contexto
+      ...conversationHistory.slice(-4),
       { role: 'user', content: userMessage }
     ];
     
     const response = await groq.chat.completions.create({
       model: MODEL,
       messages,
-      max_tokens: 300,
-      temperature: 0.8,
+      max_tokens: 500,
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
     });
     
-    return response.choices[0]?.message?.content || 'No pude procesar tu mensaje.';
+    const content = response.choices[0]?.message?.content || '{}';
+    let result;
+    
+    try {
+      result = JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse coach JSON:', content);
+      return content || 'No pude procesar tu mensaje.';
+    }
+
+    let finalMessage = result.message || 'Procesado.';
+
+    // Ejecutar acción si es necesario
+    if ((result.action === 'UPDATE_SESSION' || result.action === 'DELETE_SESSION') && result.targetDate) {
+      const startOfDay = new Date(result.targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(result.targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const existingSession = await prisma.workoutSession.findFirst({
+        where: {
+          date: {
+            gte: startOfDay,
+            lte: endOfDay
+          }
+        }
+      });
+
+      if (existingSession) {
+        if (result.action === 'DELETE_SESSION') {
+          // Primero eliminar los sets relacionados
+          await prisma.workoutSet.deleteMany({
+            where: { workoutSessionId: existingSession.id }
+          });
+          // Luego eliminar la sesión
+          await prisma.workoutSession.delete({
+            where: { id: existingSession.id }
+          });
+          finalMessage = result.message || `Entrenamiento del ${result.targetDate} eliminado correctamente.`;
+        } else {
+          // UPDATE_SESSION
+          const updateData = {};
+          if (result.updates?.routineName !== undefined) updateData.routineName = result.updates.routineName;
+          if (result.updates?.didCardio !== undefined) updateData.didCardio = result.updates.didCardio;
+          if (result.updates?.cardioMinutes !== undefined) updateData.cardioMinutes = result.updates.cardioMinutes;
+          if (result.updates?.totalCalories !== undefined) updateData.totalCalories = result.updates.totalCalories;
+          
+          const newNote = `[AI: ${result.updates?.correctionReason || 'Modificado via Telegram'}]`;
+          updateData.notes = existingSession.notes 
+            ? `${existingSession.notes}\n${newNote}`
+            : newNote;
+  
+          await prisma.workoutSession.update({
+            where: { id: existingSession.id },
+            data: updateData
+          });
+          finalMessage = result.message || `Entrenamiento del ${result.targetDate} actualizado.`;
+        }
+      } else {
+        finalMessage = `No encontré un entrenamiento registrado para el ${result.targetDate}.`;
+      }
+    }
+
+    return finalMessage;
   } catch (error) {
     console.error('Error chatting with coach:', error);
     return 'Error al conectar con el coach. Intenta de nuevo.';
@@ -176,11 +307,11 @@ export async function analyzeWorkout(workoutData) {
 ENTRENAMIENTO:
 - Rutina: ${routineName}
 - Series totales: ${sets}
-- Duracion: ${duration} minutos
-- Calorias: ${calories}
+- Duración: ${duration} minutos
+- Calorías: ${calories}
 - Cardio: ${cardio.did ? `${cardio.minutes} min (${cardio.intensity})` : 'No'}
 
-Da una valoracion honesta. Si fue buen entrenamiento, felicita. Si fue corto/poco intenso, sugiere mejoras.`;
+Da una valoración honesta. Si fue buen entrenamiento, felicita. Si fue corto/poco intenso, sugiere mejoras.`;
 
     const response = await groq.chat.completions.create({
       model: MODEL,
@@ -192,10 +323,10 @@ Da una valoracion honesta. Si fue buen entrenamiento, felicita. Si fue corto/poc
       temperature: 0.7,
     });
     
-    return response.choices[0]?.message?.content || 'Buen trabajo!';
+    return response.choices[0]?.message?.content || '¡Buen trabajo!';
   } catch (error) {
     console.error('Error analyzing workout:', error);
-    return 'Buen entrenamiento! Sigue asi.';
+    return '¡Buen entrenamiento! Sigue así.';
   }
 }
 
@@ -204,15 +335,14 @@ Da una valoracion honesta. Si fue buen entrenamiento, felicita. Si fue corto/poc
  */
 export async function parseWorkoutText(text) {
   try {
-    // Obtener ejercicios disponibles para matching
     const exercises = await prisma.exercise.findMany({
       select: { id: true, name: true }
     });
     
     const exerciseNames = exercises.map(e => e.name).join(', ');
     
-    const systemPrompt = `Eres un parser de entrenamientos. El usuario describira su entrenamiento en texto libre. 
-Tu tarea es extraer la informacion estructurada.
+    const systemPrompt = `Eres un parser de entrenamientos. El usuario describirá su entrenamiento en texto libre. 
+Tu tarea es extraer la información estructurada.
 
 EJERCICIOS DISPONIBLES EN LA APP:
 ${exerciseNames}
@@ -220,7 +350,7 @@ ${exerciseNames}
 INSTRUCCIONES:
 1. Identifica los ejercicios mencionados (usa los nombres exactos de arriba cuando sea posible)
 2. Extrae peso y repeticiones de cada serie
-3. Identifica si hizo cardio y cuanto
+3. Identifica si hizo cardio y cuánto
 
 RESPONDE SOLO EN ESTE FORMATO JSON (sin markdown, sin explicaciones):
 {
@@ -245,13 +375,10 @@ Si no puedes parsear algo, usa valores por defecto (peso: 0, reps: 0).`;
     
     const content = response.choices[0]?.message?.content || '{}';
     
-    // Intentar parsear JSON
     try {
-      // Limpiar posibles artefactos
       const cleanJson = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const parsed = JSON.parse(cleanJson);
       
-      // Mapear nombres de ejercicios a IDs
       for (const ex of parsed.exercises || []) {
         const match = exercises.find(e => 
           e.name.toLowerCase() === ex.name.toLowerCase() ||
@@ -260,7 +387,7 @@ Si no puedes parsear algo, usa valores por defecto (peso: 0, reps: 0).`;
         );
         if (match) {
           ex.id = match.id;
-          ex.name = match.name; // Usar nombre exacto
+          ex.name = match.name;
         }
       }
       
@@ -281,7 +408,7 @@ function countConsecutiveTrainingDays(workouts) {
   if (!workouts.length) return 0;
   
   let count = 0;
-  const today = new Date();
+  const today = getColombiaDate();
   today.setHours(0, 0, 0, 0);
   
   for (let i = 0; i < workouts.length; i++) {

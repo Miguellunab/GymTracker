@@ -7,6 +7,7 @@ import { BOT_CONFIG } from '../constants.js';
 import { handleCommand } from './commands.js';
 import { handleCallback } from './callbacks.js';
 import { handleMessage } from './messages.js';
+import { checkAndNotifyTimer } from './timer.js';
 import { sendMessage } from '../telegram.js';
 import { MESSAGES } from '../constants.js';
 
@@ -39,6 +40,9 @@ export async function handleUpdate(update) {
         return { ok: true, action: 'unauthorized' };
       }
       
+      // IMPORTANTE: Verificar timer en cada interacción
+      await checkAndNotifyTimer(chatId);
+      
       // Comando
       if (text.startsWith('/')) {
         const [command, ...args] = text.split(' ');
@@ -62,6 +66,9 @@ export async function handleUpdate(update) {
       if (!isAuthorized(chatId)) {
         return { ok: true, action: 'unauthorized' };
       }
+      
+      // IMPORTANTE: Verificar timer en cada interacción
+      await checkAndNotifyTimer(chatId);
       
       await handleCallback(chatId, messageId, callbackData, callbackQueryId);
       return { ok: true, action: 'callback', data: callbackData };
