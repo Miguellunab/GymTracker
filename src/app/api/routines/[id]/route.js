@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 
 function getMode(request) {
-    return request.cookies?.get('app_mode')?.value ?? 'main';
+    if (!request.cookies) {
+        return 'main';
+    }
+    return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 export async function GET(request, { params }) {

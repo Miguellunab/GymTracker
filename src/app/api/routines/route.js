@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 
 function getMode(request) {
-    return request.cookies?.get('app_mode')?.value ?? 'main';
+  if (!request.cookies) {
+    return 'main';
+  }
+  return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 export async function GET(request) {
@@ -24,7 +27,7 @@ export async function GET(request) {
             
             if (!routine) return NextResponse.json(null);
 
-            // Format for UI [ { id, name, muscle, notes, lastLog } ]
+            // Format for UI [ { id, name, muscle, notes, lastLog, isBiSeries } ]
             const formatted = await Promise.all(routine.exercises.map(async (re) => {
                 // Fetch last set to show prompt
                 const lastSet = await prisma.workoutSet.findFirst({
@@ -42,9 +45,11 @@ export async function GET(request) {
                     muscle: re.exercise.muscleGroup,
                     notes: re.exercise.notes || "",
                     lastWeight: lastSet ? lastSet.weight : null,
-                    lastReps: lastSet ? lastSet.reps : null
+                    lastReps: lastSet ? lastSet.reps : null,
+                    isBiSeries: re.exercise.name.toLowerCase().startsWith('biserie')
                 };
             }));
+
 
             return NextResponse.json({
                 name: routine.name,

@@ -4,7 +4,10 @@ import { getPrisma } from '@/lib/prisma';
 export const runtime = 'nodejs';
 
 function getMode(request) {
-  return request.cookies?.get('app_mode')?.value ?? 'main';
+  if (!request.cookies) {
+    return 'main';
+  }
+  return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 export async function POST(request) {
@@ -48,13 +51,16 @@ export async function POST(request) {
       5. Suma todo para un total preciso.
       6. Genera un JSON con los resultados.
       
-      IMPORTANTE: Se realista. Una sesión de pesas promedio quema entre 3-6 kcal/minuto. Solo muy alta intensidad llega a más.
+      IMPORTANTE:
+      - Para una sesión de pesas, considera también la duración total REAL de la sesión (descansos incluidos).
+      - El gasto calórico en pesas suele ser de 3-6 kcal/min, pero varía mucho con intensidad.
+      - Analiza el feedback del usuario para ajustar: "estuve cansado" -> menor intensidad, "subí peso" -> mayor intensidad.
       
       Responde SOLO con un JSON válido con este formato:
       {
         "totalCalories": number (entero),
-        "durationSeconds": number (estimado total en segundos, asume 3-4 min por serie si no se especifica, más cardio),
-        "analysis": "Breve explicación de 1 frase de por qué este gasto calórico",
+        "durationSeconds": number (estimado total en segundos, si no hay dato, calcula 4 min/serie aprox + cardio),
+        "analysis": "Párrafo breve (2-3 frases) analizando el rendimiento, comparando cargas si es posible, y dando consejo sobre subir/bajar intensidad.",
         "intensityScore": number (1-10)
       }
     `;

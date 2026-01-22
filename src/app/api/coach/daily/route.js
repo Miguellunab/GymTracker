@@ -5,7 +5,11 @@ import { differenceInDays } from 'date-fns';
 export const runtime = 'nodejs';
 
 function getMode(request) {
-  return request.cookies?.get('app_mode')?.value ?? 'main';
+  // Check if cookies exists on the request
+  if (!request.cookies) {
+    return 'main';
+  }
+  return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 export async function GET(request) {

@@ -7,7 +7,10 @@ function getBaseUrl(request) {
 }
 
 function getMode(request) {
-  return request.cookies?.get('app_mode')?.value ?? 'main';
+  if (!request.cookies) {
+    return 'main';
+  }
+  return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 export async function POST(request) {

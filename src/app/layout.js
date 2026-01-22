@@ -30,6 +30,9 @@ export const metadata = {
         statusBarStyle: 'black-translucent',
         title: "GymTracker",
     },
+    other: {
+        "mobile-web-app-capable": "yes",
+    },
     formatDetection: {
         telephone: false,
     },

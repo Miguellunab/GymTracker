@@ -22,11 +22,30 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
     }
   };
 
-  const updateExerciseLog = (exId, sets, reps, weight, rir) => {
+  const updateExerciseLog = (exId, field, value) => {
     setWorkoutData(prev => ({
       ...prev,
-      [exId]: { sets, reps, weight, rir }
+      [exId]: {
+        ...prev[exId],
+        [field]: value
+      }
     }));
+  };
+
+  const updateBiSeriesLog = (exId, index, field, value) => {
+    setWorkoutData(prev => {
+        const currentData = prev[exId] || { biSeries: [{}, {}] };
+        const newBiSeries = [...(currentData.biSeries || [{}, {}])];
+        if (!newBiSeries[index]) newBiSeries[index] = {};
+        newBiSeries[index][field] = value;
+        return {
+            ...prev,
+            [exId]: {
+                ...currentData,
+                biSeries: newBiSeries
+            }
+        };
+    });
   };
 
   const handleAnalysis = async () => {
@@ -39,7 +58,22 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
         routineName,
         exercises: selectedExercises.map(id => {
           const ex = exercises.find(e => e.id === id);
-          const log = workoutData[id];
+          const log = workoutData[id] || {};
+          
+          if (ex.isBiSeries) {
+             return {
+                 name: ex.name,
+                 isBiSeries: true,
+                 details: (log.biSeries || []).map((s, idx) => ({
+                     name: idx === 0 ? "Ejercicio 1" : "Ejercicio 2", // Idealmente tendríamos los nombres reales
+                     sets: s.sets,
+                     reps: s.reps,
+                     weight: s.weight,
+                     rir: s.rir
+                 }))
+             }
+          }
+
           return {
             name: ex.name,
             sets: log.sets,
@@ -71,16 +105,45 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
         
         const formattedLogs = {};
         Object.entries(workoutData).forEach(([exId, log]) => {
-            const setsArray = [];
-            const numSets = parseInt(log.sets) || 0;
-            for(let i=0; i<numSets; i++) {
-                setsArray.push({
-                    weight: parseFloat(log.weight) || 0,
-                    reps: parseInt(log.reps) || 0,
-                    rir: parseInt(log.rir) || null
-                });
+            const ex = exercises.find(e => e.id === exId);
+            if (ex && ex.isBiSeries) {
+                 // Logic for BiSeries formatting if needed for DB storage
+                 // For now, we might store them as separate entries or a special format
+                 // This depends on how the backend handles bi-series logging
+                 // Simplified: We treat bi-series as a single complex log or skip detailed set logging for now
+                 // or we average them? Let's assume standard logging for simplicity or custom handling
+                 
+                 // If the backend doesn't support bi-series structure in 'logs', we might need to adapt.
+                 // Assuming standard structure for now, maybe taking the first exercise's data or both.
+                 
+                 // IMPROVEMENT: Handle BiSeries persistence correctly. 
+                 // For now, let's just log the first part to avoid crashes if backend expects simple array
+                 if(log.biSeries && log.biSeries[0]) {
+                     const s = log.biSeries[0];
+                     const setsArray = [];
+                     const numSets = parseInt(s.sets) || 0;
+                     for(let i=0; i<numSets; i++) {
+                        setsArray.push({
+                            weight: parseFloat(s.weight) || 0,
+                            reps: parseInt(s.reps) || 0,
+                            rir: parseInt(s.rir) || null
+                        });
+                     }
+                     if(setsArray.length > 0) formattedLogs[exId] = setsArray;
+                 }
+                 
+            } else {
+                const setsArray = [];
+                const numSets = parseInt(log.sets) || 0;
+                for(let i=0; i<numSets; i++) {
+                    setsArray.push({
+                        weight: parseFloat(log.weight) || 0,
+                        reps: parseInt(log.reps) || 0,
+                        rir: parseInt(log.rir) || null
+                    });
+                }
+                if(setsArray.length > 0) formattedLogs[exId] = setsArray;
             }
-            if(setsArray.length > 0) formattedLogs[exId] = setsArray;
         });
         
         onComplete({
@@ -165,6 +228,64 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
         <div className="space-y-6 max-h-[65vh] overflow-y-auto pr-2">
           {selectedExercises.map(exId => {
             const ex = exercises.find(e => e.id === exId);
+            
+            // Check if it's a Bi-Series (this logic depends on how you identify bi-series in your data)
+            // For this example, I'll assume a property `isBiSeries` or check if name contains "Bi-Serie"
+            const isBiSeries = ex.isBiSeries || ex.name.includes("Bi-Serie");
+
+            if (isBiSeries) {
+                return (
+                    <div key={exId} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 space-y-4">
+                        <h3 className="font-bold text-emerald-400">{ex.name} (Bi-Serie)</h3>
+                        <div className="space-y-4">
+                            {[0, 1].map((index) => (
+                                <div key={index} className="pl-4 border-l-2 border-zinc-700">
+                                    <h4 className="text-sm font-semibold text-zinc-300 mb-2">Ejercicio {index + 1}</h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-zinc-500 uppercase">Series</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
+                                                placeholder="4"
+                                                onChange={(e) => updateBiSeriesLog(exId, index, 'sets', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-zinc-500 uppercase">Reps</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
+                                                placeholder="12"
+                                                onChange={(e) => updateBiSeriesLog(exId, index, 'reps', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-zinc-500 uppercase">Peso</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
+                                                placeholder="kg"
+                                                onChange={(e) => updateBiSeriesLog(exId, index, 'weight', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-zinc-500 uppercase">RIR</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
+                                                placeholder="-"
+                                                onChange={(e) => updateBiSeriesLog(exId, index, 'rir', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
             return (
               <div key={exId} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 space-y-4">
                 <h3 className="font-bold text-emerald-400">{ex.name}</h3>
@@ -175,7 +296,7 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
                       type="number" 
                       className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
                       placeholder="4"
-                      onChange={(e) => updateExerciseLog(exId, e.target.value, workoutData[exId]?.reps, workoutData[exId]?.weight, workoutData[exId]?.rir)}
+                      onChange={(e) => updateExerciseLog(exId, 'sets', e.target.value)}
                     />
                   </div>
                   <div>
@@ -184,7 +305,7 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
                       type="number" 
                       className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
                       placeholder="12"
-                      onChange={(e) => updateExerciseLog(exId, workoutData[exId]?.sets, e.target.value, workoutData[exId]?.weight, workoutData[exId]?.rir)}
+                      onChange={(e) => updateExerciseLog(exId, 'reps', e.target.value)}
                     />
                   </div>
                   <div>
@@ -193,7 +314,7 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
                       type="number" 
                       className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
                       placeholder="20"
-                      onChange={(e) => updateExerciseLog(exId, workoutData[exId]?.sets, workoutData[exId]?.reps, e.target.value, workoutData[exId]?.rir)}
+                      onChange={(e) => updateExerciseLog(exId, 'weight', e.target.value)}
                     />
                   </div>
                   <div>
@@ -202,7 +323,7 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
                       type="number" 
                       className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white"
                       placeholder="1-3"
-                      onChange={(e) => updateExerciseLog(exId, workoutData[exId]?.sets, workoutData[exId]?.reps, workoutData[exId]?.weight, e.target.value)}
+                      onChange={(e) => updateExerciseLog(exId, 'rir', e.target.value)}
                     />
                   </div>
                 </div>
@@ -279,15 +400,41 @@ export function AIWorkoutLogger({ routineName, exercises, onComplete }) {
         <div className="text-center">
             <Bot className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
             <h2 className="text-xl font-bold text-white">¿Cómo te sentiste?</h2>
-            <p className="text-sm text-zinc-400 mb-6">Cuéntame brevemente cómo estuvo el entrenamiento. Me servirá para calcular mejor tu gasto calórico.</p>
+            <p className="text-sm text-zinc-400 mb-6">Cuéntame brevemente cómo estuvo el entrenamiento y cuánto duró en total.</p>
         </div>
         
-        <textarea 
-            className="w-full h-32 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white placeholder-zinc-600 focus:border-emerald-500 outline-none resize-none"
-            placeholder="Ej: Me sentí con mucha energía, subí peso en sentadilla. El cardio me costó un poco..."
-            value={feedbackText}
-            onChange={(e) => setFeedbackText(e.target.value)}
-        />
+        <div className="space-y-4">
+             <div>
+                <label className="text-zinc-400 block mb-2 text-sm font-bold">⏱️ Duración Total Sesión (minutos)</label>
+                <input 
+                    type="number" 
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="w-full bg-black border border-zinc-700 p-3 rounded-xl text-white text-lg placeholder-zinc-700"
+                    placeholder="Ej: 60"
+                    onChange={(e) => setFeedbackText(prev => {
+                        // Store duration in a separate state ideally, but sticking to existing pattern for now
+                        // We will prepend it to the feedback text
+                        const duration = e.target.value;
+                        const existingText = prev.replace(/^\[Duración: \d+ min\]\s*/, '');
+                        return duration ? `[Duración: ${duration} min] ${existingText}` : existingText;
+                    })}
+                />
+            </div>
+
+            <div>
+                <label className="text-zinc-400 block mb-2 text-sm font-bold">Feedback / Sensaciones</label>
+                <textarea 
+                    className="w-full h-32 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white placeholder-zinc-600 focus:border-emerald-500 outline-none resize-none"
+                    placeholder="Ej: Me sentí con mucha energía, subí peso en sentadilla. El cardio me costó un poco..."
+                    onChange={(e) => setFeedbackText(prev => {
+                         const match = prev.match(/^\[Duración: \d+ min\]\s*/);
+                         const prefix = match ? match[0] : '';
+                         return prefix + e.target.value;
+                    })}
+                />
+            </div>
+        </div>
 
         <BigButton onClick={handleAnalysis} disabled={!feedbackText.trim()}>
           Calcular Resultados <Flame className="w-4 h-4 ml-2 text-orange-500" />

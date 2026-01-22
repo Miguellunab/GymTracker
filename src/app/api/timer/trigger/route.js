@@ -4,7 +4,9 @@ import { Receiver } from '@upstash/qstash';
 import { getPrisma } from '@/lib/prisma';
 
 function getMode(request, payload) {
-  return payload?.mode ?? request.cookies?.get('app_mode')?.value ?? 'main';
+  if (payload?.mode) return payload.mode;
+  if (!request.cookies) return 'main';
+  return request.cookies.get('app_mode')?.value ?? 'main';
 }
 
 function getReceiver() {
