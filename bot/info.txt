@@ -1,0 +1,74 @@
+// Bot de Telegram - GymTracker
+// ================================
+
+// Nombre: GymTracker Timer Bot
+// Username: @Gym522_Timer_bot
+// Link: https://t.me/Gym522_Timer_bot
+
+// Token (de BotFather):
+// 7714782728:AAEg_V57InZZE0XZPZcJM-1qVt4wy0r4ePY
+
+// ================================
+// INSTRUCCIONES DE CONFIGURACIÓN
+// ================================
+
+// 1. Obtener tu Chat ID:
+//    - Abre Telegram y busca @Gym522_Timer_bot
+//    - Envía /start
+//    - El bot te mostrará tu Chat ID
+//    - Copia ese ID
+
+// 2. Configurar variables de entorno:
+//    Agrega a .env y a Vercel:
+//
+//    TELEGRAM_BOT_TOKEN=7714782728:AAEg_V57InZZE0XZPZcJM-1qVt4wy0r4ePY
+//    TELEGRAM_OWNER_CHAT_ID=<tu_chat_id_aqui>
+//    TELEGRAM_WEBHOOK_SECRET=gymtracker_webhook_secret_2024
+
+// 3. Configurar webhook (después de deploy):
+//    
+//    Opción A - Script:
+//    node bot/setup-webhook.js https://tu-app.vercel.app
+//
+//    Opción B - Manual:
+//    Abre en el navegador:
+//    https://api.telegram.org/bot7714782728:AAEg_V57InZZE0XZPZcJM-1qVt4wy0r4ePY/setWebhook?url=https://TU-APP.vercel.app/api/telegram&secret_token=gymtracker_webhook_secret_2024
+
+// 4. Verificar webhook:
+//    https://api.telegram.org/bot7714782728:AAEg_V57InZZE0XZPZcJM-1qVt4wy0r4ePY/getWebhookInfo
+
+// ================================
+// FUNCIONALIDADES
+// ================================
+
+// Timer de Descanso:
+//   - Botones siempre visibles: 3min, 4min, 5min
+//   - Countdown con actualización
+//   - Notificación sonora al terminar
+
+// Registro de Entrenamiento:
+//   - Flujo guiado: Rutina → Ejercicios → Series → Cardio
+//   - Texto libre: "Hice press 80x10, remo 70x12"
+
+// Otras funciones:
+//   - /peso - Registrar peso corporal
+//   - /historial - Ver últimos entrenamientos
+//   - /calendario - Calendario mensual
+//   - /consejo - Consejo diario del Coach
+//   - /coach - Chat con Coach AI
+
+// ================================
+// MENSAJE ORIGINAL DE BOTFATHER
+// ================================
+
+// Done! Congratulations on your new bot. You will find it at t.me/Gym522_Timer_bot. 
+// You can now add a description, about section and profile picture for your bot, 
+// see /help for a list of commands. By the way, when you've finished creating your 
+// cool bot, ping our Bot Support if you want a better username for it. Just make 
+// sure the bot is fully operational before you do this.
+
+// Use this token to access the HTTP API:
+// 7714782728:AAEg_V57InZZE0XZPZcJM-1qVt4wy0r4ePY
+// Keep your token secure and store it safely, it can be used by anyone to control your bot.
+
+// For a description of the Bot API, see this page: https://core.telegram.org/bots/api
