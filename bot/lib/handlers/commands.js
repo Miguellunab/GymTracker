@@ -21,20 +21,15 @@ import { getCalendarNavKeyboard } from '../keyboards/inline.js';
  * /start - Bienvenida e inicialización
  */
 export async function handleStart(chatId) {
-  // Asegurar que el mensaje no esté vacío
-  const welcomeText = MESSAGES.WELCOME && MESSAGES.WELCOME.trim().length > 0 
-    ? MESSAGES.WELCOME 
-    : "*Bienvenido a GymTracker Bot* (Mensaje por defecto)";
-
   // Mostrar mensaje de bienvenida con teclado permanente
   await sendMessageWithKeyboard(
     chatId,
-    welcomeText,
+    MESSAGES.WELCOME,
     getMainKeyboard()
   );
   
-  // Informar el chat_id para configuración
-  await sendMessage(chatId, `_Tu Chat ID: \`${chatId}\`_\n\n_Configura TELEGRAM\\_OWNER\\_CHAT\\_ID con este valor._`);
+  // Informar el chat_id para configuración (sin markdown problemático)
+  await sendMessage(chatId, `Tu Chat ID: ${chatId}\n\nConfigura TELEGRAM_OWNER_CHAT_ID con este valor en Vercel.`, { parse_mode: null });
   
   clearState(chatId);
 }

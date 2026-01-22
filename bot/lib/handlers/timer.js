@@ -7,7 +7,9 @@
 
 import { sendMessage } from '../telegram.js';
 import { EMOJI } from '../constants.js';
-import prisma from '../../../src/lib/prisma.js';
+import { getPrisma } from '../../../src/lib/prisma.js';
+
+const prisma = getPrisma();
 
 // Zona horaria Colombia (UTC-5)
 const TIMEZONE = 'America/Bogota';

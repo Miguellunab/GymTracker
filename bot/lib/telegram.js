@@ -38,12 +38,16 @@ async function callAPI(method, params = {}) {
  * Envía un mensaje de texto
  */
 export async function sendMessage(chatId, text, options = {}) {
-  return callAPI('sendMessage', {
+  const params = {
     chat_id: chatId,
     text,
-    parse_mode: 'Markdown',
     ...options,
-  });
+  };
+  // Solo agregar parse_mode si no se deshabilitó explícitamente
+  if (options.parse_mode !== null && options.parse_mode !== false) {
+    params.parse_mode = options.parse_mode || 'Markdown';
+  }
+  return callAPI('sendMessage', params);
 }
 
 /**
