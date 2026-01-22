@@ -26,6 +26,7 @@ export const STATES = {
   WORKOUT_CARDIO: 'workout_cardio',
   WORKOUT_CARDIO_MINUTES: 'workout_cardio_minutes',
   WORKOUT_CARDIO_INTENSITY: 'workout_cardio_intensity',
+  WORKOUT_DURATION: 'workout_duration', // Nueva: preguntar duración
   WORKOUT_CONFIRM: 'workout_confirm',
   // Weight Flow
   WEIGHT_INPUT: 'weight_input',
@@ -105,8 +106,8 @@ Selecciona los ejercicios que realizaste:
 *${exerciseName}*
 Serie ${setNumber}
 
-Ingresa: peso x reps
-Ejemplo: 80x10
+Ingresa: peso x reps (ej: 80x10)
+O con RIR: 80x10 rir2
 `,
 
   CARDIO_QUESTION: 'Hiciste cardio hoy?',
@@ -114,6 +115,8 @@ Ejemplo: 80x10
   CARDIO_MINUTES: 'Cuantos minutos de cardio?',
   
   CARDIO_INTENSITY: 'Cual fue la intensidad?',
+
+  DURATION_QUESTION: 'Cuanto duro tu entrenamiento en minutos?\n(Escribe un numero, ej: 60)',
 
   WORKOUT_SAVED: (summary) => `
 *Entrenamiento guardado!*
@@ -218,6 +221,8 @@ export const CALLBACKS = {
   CARDIO_NO: 'cardio_no',
   CARDIO_MINUTES: 'cardio_min_',
   CARDIO_INTENSITY: 'cardio_int_',
+  // Duration
+  DURATION_MINUTES: 'duration_min_',
   WORKOUT_CONFIRM: 'workout_confirm',
   WORKOUT_CANCEL: 'workout_cancel',
   // Text libre

@@ -97,3 +97,12 @@ model PushSubscription {
   keys_p256dh String
   createdAt  DateTime @default(now())
 }
+
+// Timer de descanso para Telegram bot
+model TelegramTimer {
+  id        String   @id @default(cuid())
+  chatId    String   @unique // Solo un timer activo por usuario
+  endTime   DateTime
+  minutes   Int
+  createdAt DateTime @default(now())
+}

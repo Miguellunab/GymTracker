@@ -31,6 +31,7 @@ import {
   getCardioQuestionKeyboard,
   getCardioMinutesKeyboard,
   getCardioIntensityKeyboard,
+  getDurationKeyboard,
   getWorkoutConfirmKeyboard,
   getCalendarNavKeyboard,
   getPostWorkoutKeyboard
@@ -99,6 +100,11 @@ export async function handleCallback(chatId, messageId, callbackData, callbackQu
   
   if (callbackData.startsWith(CALLBACKS.CARDIO_INTENSITY)) {
     return handleCardioIntensity(chatId, messageId, callbackData);
+  }
+  
+  // Duración del entrenamiento
+  if (callbackData.startsWith('duration_min_')) {
+    return handleDurationMinutes(chatId, messageId, callbackData);
   }
   
   // Confirmar workout
@@ -241,21 +247,22 @@ async function showSetInput(chatId, messageId) {
   const setNumber = exercise.setsCount + 1;
   const currentWeight = state.data.currentSetInput?.weight || 0;
   const currentReps = state.data.currentSetInput?.reps || 0;
+  const currentRir = state.data.currentSetInput?.rir ?? null;
   
   await editMessageWithInlineKeyboard(
     chatId,
     messageId,
     MESSAGES.INPUT_SETS(exercise.name, setNumber),
-    getSetInputKeyboard(currentWeight, currentReps, setNumber)
+    getSetInputKeyboard(currentWeight, currentReps, setNumber, currentRir)
   );
 }
 
 /**
- * Controles de peso/reps
+ * Controles de peso/reps/RIR
  */
 async function handleSetControl(chatId, messageId, callbackData) {
   const state = getState(chatId);
-  const currentInput = state.data.currentSetInput || { weight: 0, reps: 0 };
+  const currentInput = state.data.currentSetInput || { weight: 0, reps: 0, rir: null };
   
   // Cambio de peso
   if (callbackData.startsWith('set_w_')) {
@@ -275,12 +282,18 @@ async function handleSetControl(chatId, messageId, callbackData) {
     currentInput.reps = reps;
   }
   
+  // RIR (Reps in Reserve)
+  if (callbackData.startsWith('set_rir_')) {
+    const rir = parseInt(callbackData.replace('set_rir_', ''));
+    currentInput.rir = rir;
+  }
+  
   // Guardar serie
   if (callbackData === CALLBACKS.SET_ADD) {
     const exercise = getCurrentExercise(chatId);
     if (exercise && currentInput.weight > 0 && currentInput.reps > 0) {
-      addSetToExercise(chatId, exercise.id, currentInput.weight, currentInput.reps);
-      // Mantener peso para siguiente serie
+      addSetToExercise(chatId, exercise.id, currentInput.weight, currentInput.reps, currentInput.rir);
+      // Mantener peso y RIR para siguiente serie
       currentInput.reps = 0;
     }
   }
@@ -303,7 +316,7 @@ async function handleSetControl(chatId, messageId, callbackData) {
       chatId,
       messageId,
       MESSAGES.INPUT_SETS(exercise.name, setNumber),
-      getSetInputKeyboard(currentInput.weight, currentInput.reps, setNumber)
+      getSetInputKeyboard(currentInput.weight, currentInput.reps, setNumber, currentInput.rir)
     );
   }
 }
@@ -327,8 +340,8 @@ async function handleCardioQuestion(chatId, messageId, callbackData) {
       getCardioMinutesKeyboard()
     );
   } else {
-    // Ir directo a confirmación
-    await showWorkoutSummary(chatId, messageId);
+    // Ir a preguntar duración
+    await showDurationQuestion(chatId, messageId);
   }
 }
 
@@ -361,6 +374,31 @@ async function handleCardioIntensity(chatId, messageId, callbackData) {
   workout.cardio.intensity = intensity;
   updateWorkoutData(chatId, { cardio: workout.cardio });
   
+  // Ir a preguntar duración
+  await showDurationQuestion(chatId, messageId);
+}
+
+/**
+ * Muestra pregunta de duración
+ */
+async function showDurationQuestion(chatId, messageId) {
+  setState(chatId, STATES.WORKOUT_DURATION);
+  await editMessageWithInlineKeyboard(
+    chatId,
+    messageId,
+    `⏱️ ${MESSAGES.DURATION_QUESTION}`,
+    getDurationKeyboard()
+  );
+}
+
+/**
+ * Maneja selección de duración
+ */
+async function handleDurationMinutes(chatId, messageId, callbackData) {
+  const minutes = parseInt(callbackData.replace('duration_min_', ''));
+  
+  updateWorkoutData(chatId, { durationMinutes: minutes });
+  
   // Mostrar resumen
   await showWorkoutSummary(chatId, messageId);
 }
@@ -375,16 +413,24 @@ async function showWorkoutSummary(chatId, messageId) {
   // Calcular estadísticas
   const stats = calculateWorkoutStats(workout.exerciseData, workout.cardio);
   
+  // Usar duración real si fue ingresada
+  const durationMinutes = workout.durationMinutes || Math.round(stats.estimatedDuration / 60);
+  
   // Formatear resumen
   let summary = `*Resumen del Workout*\n\n`;
-  summary += `${EMOJI.WORKOUT} *Rutina:* ${workout.routineName}\n\n`;
+  summary += `${EMOJI.WORKOUT} *Rutina:* ${workout.routineName}\n`;
+  summary += `⏱️ *Duración:* ${durationMinutes} min\n\n`;
   
   // Ejercicios con series
   for (const [exerciseId, data] of Object.entries(workout.exerciseData)) {
     if (data.sets && data.sets.length > 0) {
       summary += `*${data.name}:*\n`;
       data.sets.forEach((set, i) => {
-        summary += `  Serie ${i + 1}: ${set.weight}kg x ${set.reps}\n`;
+        let setLine = `  Serie ${i + 1}: ${set.weight}kg x ${set.reps}`;
+        if (set.rir !== null && set.rir !== undefined) {
+          setLine += ` (RIR ${set.rir})`;
+        }
+        summary += setLine + '\n';
       });
       summary += '\n';
     }
@@ -396,10 +442,9 @@ async function showWorkoutSummary(chatId, messageId) {
   }
   
   // Estadísticas
-  summary += `📊 *Estadísticas estimadas:*\n`;
+  summary += `📊 *Estadísticas:*\n`;
   summary += `  Series totales: ${stats.totalSets}\n`;
-  summary += `  Duración: ~${Math.round(stats.estimatedDuration / 60)} min\n`;
-  summary += `  Calorías: ~${stats.estimatedCalories} kcal\n`;
+  summary += `  Calorías estimadas: ~${stats.estimatedCalories} kcal\n`;
   
   await editMessageWithInlineKeyboard(
     chatId,
@@ -426,13 +471,19 @@ async function handleWorkoutConfirm(chatId, messageId) {
     // Calcular stats
     const stats = calculateWorkoutStats(workout.exerciseData, workout.cardio);
     
-    // Preparar workoutData para la API
+    // Usar duración real si fue ingresada
+    const durationMinutes = workout.durationMinutes || Math.round(stats.estimatedDuration / 60);
+    const durationSeconds = durationMinutes * 60;
+    
+    // Preparar workoutData para la API (incluyendo RIR como rpe)
     const workoutData = {};
     for (const [exerciseId, data] of Object.entries(workout.exerciseData)) {
       workoutData[exerciseId] = data.sets.map(s => ({
         weight: s.weight,
         reps: s.reps,
-        isWarmup: false
+        isWarmup: false,
+        // RIR se guarda como rpe (invertido: RIR 0 = RPE 10, RIR 3 = RPE 7)
+        rpe: s.rir !== null ? (10 - s.rir) : null
       }));
     }
     
@@ -440,7 +491,7 @@ async function handleWorkoutConfirm(chatId, messageId) {
     await createWorkout({
       routineName: workout.routineName,
       date: new Date(),
-      durationSeconds: stats.estimatedDuration,
+      durationSeconds: durationSeconds,
       totalCalories: stats.estimatedCalories,
       didCardio: workout.cardio.did,
       cardioMinutes: workout.cardio.minutes,
@@ -451,12 +502,12 @@ async function handleWorkoutConfirm(chatId, messageId) {
     clearState(chatId);
     
     // Guardar stats para análisis posterior
-    updateData(chatId, { lastWorkoutStats: { ...workout, stats } });
+    updateData(chatId, { lastWorkoutStats: { ...workout, stats, durationMinutes } });
     
     const successMsg = MESSAGES.WORKOUT_SAVED(`
 ${EMOJI.WORKOUT} ${workout.routineName}
 ${EMOJI.FIRE} ${stats.totalSets} series
-⏱️ ~${Math.round(stats.estimatedDuration / 60)} min
+⏱️ ${durationMinutes} min
 🔥 ~${stats.estimatedCalories} kcal
 `);
     

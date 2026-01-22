@@ -86,7 +86,7 @@ export function getExerciseKeyboard(exercises, selectedIds) {
 /**
  * Input de series (peso/reps con controles)
  */
-export function getSetInputKeyboard(currentWeight, currentReps, setNumber) {
+export function getSetInputKeyboard(currentWeight, currentReps, setNumber, currentRir = null) {
   return [
     // Controles de peso
     [
@@ -111,6 +111,14 @@ export function getSetInputKeyboard(currentWeight, currentReps, setNumber) {
       { text: '10', callback_data: 'set_reps_10' },
       { text: '12', callback_data: 'set_reps_12' },
       { text: '15', callback_data: 'set_reps_15' },
+    ],
+    // RIR (Reps In Reserve)
+    [
+      { text: `RIR: ${currentRir !== null ? currentRir : '-'}`, callback_data: 'noop' },
+      { text: '0', callback_data: 'set_rir_0' },
+      { text: '1', callback_data: 'set_rir_1' },
+      { text: '2', callback_data: 'set_rir_2' },
+      { text: '3', callback_data: 'set_rir_3' },
     ],
     // Acciones
     [
@@ -160,6 +168,24 @@ export function getCardioIntensityKeyboard() {
       text: intensity,
       callback_data: `${CALLBACKS.CARDIO_INTENSITY}${intensity}`,
     })),
+  ];
+}
+
+/**
+ * Selector de duración del entrenamiento
+ */
+export function getDurationKeyboard() {
+  return [
+    [
+      { text: '30 min', callback_data: 'duration_min_30' },
+      { text: '45 min', callback_data: 'duration_min_45' },
+      { text: '60 min', callback_data: 'duration_min_60' },
+    ],
+    [
+      { text: '75 min', callback_data: 'duration_min_75' },
+      { text: '90 min', callback_data: 'duration_min_90' },
+      { text: '120 min', callback_data: 'duration_min_120' },
+    ],
   ];
 }
 
@@ -269,6 +295,7 @@ export default {
   getCardioQuestionKeyboard,
   getCardioMinutesKeyboard,
   getCardioIntensityKeyboard,
+  getDurationKeyboard,
   getWorkoutConfirmKeyboard,
   getTextWorkoutConfirmKeyboard,
   getPostWorkoutKeyboard,

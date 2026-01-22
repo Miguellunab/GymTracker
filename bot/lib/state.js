@@ -175,7 +175,7 @@ export function toggleExercise(chatId, exerciseId, exerciseName) {
 /**
  * Agrega una serie a un ejercicio
  */
-export function addSetToExercise(chatId, exerciseId, weight, reps) {
+export function addSetToExercise(chatId, exerciseId, weight, reps, rir = null) {
   const state = getState(chatId);
   const workout = state.data.workout;
   
@@ -183,7 +183,7 @@ export function addSetToExercise(chatId, exerciseId, weight, reps) {
     workout.exerciseData[exerciseId] = { name: '', sets: [] };
   }
   
-  workout.exerciseData[exerciseId].sets.push({ weight, reps });
+  workout.exerciseData[exerciseId].sets.push({ weight, reps, rir });
   userStates.set(chatId, state);
   
   return workout.exerciseData[exerciseId].sets;
