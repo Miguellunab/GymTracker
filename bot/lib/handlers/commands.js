@@ -21,10 +21,15 @@ import { getCalendarNavKeyboard } from '../keyboards/inline.js';
  * /start - Bienvenida e inicialización
  */
 export async function handleStart(chatId) {
+  // Asegurar que el mensaje no esté vacío
+  const welcomeText = MESSAGES.WELCOME && MESSAGES.WELCOME.trim().length > 0 
+    ? MESSAGES.WELCOME 
+    : "*Bienvenido a GymTracker Bot* (Mensaje por defecto)";
+
   // Mostrar mensaje de bienvenida con teclado permanente
   await sendMessageWithKeyboard(
     chatId,
-    MESSAGES.WELCOME,
+    welcomeText,
     getMainKeyboard()
   );
   
@@ -190,12 +195,26 @@ export async function handleCancel(chatId) {
 }
 
 /**
+ * /reset - Reiniciar el bot y el estado
+ */
+export async function handleReset(chatId) {
+  clearState(chatId);
+  
+  await sendMessage(chatId, '_Reiniciando bot..._', { reply_markup: { remove_keyboard: true } });
+  
+  // Reutilizamos handleStart para mostrar la bienvenida y restaurar teclado
+  setTimeout(() => handleStart(chatId), 500);
+}
+
+/**
  * Router de comandos
  */
 export async function handleCommand(chatId, command, args = '') {
   switch (command) {
     case '/start':
       return handleStart(chatId);
+    case '/reset':
+      return handleReset(chatId);
     case '/help':
       return handleHelp(chatId);
     case '/workout':
@@ -227,5 +246,6 @@ export default {
   handleDailyTip,
   handleCoach,
   handleCancel,
+  handleReset,
   handleCommand,
 };

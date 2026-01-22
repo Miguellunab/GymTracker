@@ -45,6 +45,26 @@ async function main() {
     if (data.ok) {
       console.log('\n✅ Webhook configurado exitosamente!');
       console.log(data.description);
+      
+      // Notificar al dueño si existe
+      const ownerId = process.env.TELEGRAM_OWNER_CHAT_ID;
+      if (ownerId) {
+        try {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               chat_id: ownerId,
+               text: "🚀 *GymTracker Bot Actualizado*\n\nEl sistema se ha reiniciado exitosamente. Escribe /start para refrescar el menú.",
+               parse_mode: 'Markdown'
+             })
+          });
+          console.log(`Notificación enviada al admin (${ownerId})`);
+        } catch (err) {
+          console.error('Error notificando al admin:', err.message);
+        }
+      }
+
     } else {
       console.error('\n❌ Error configurando webhook:');
       console.error(data.description);
