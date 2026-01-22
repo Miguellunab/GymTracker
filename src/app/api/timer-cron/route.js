@@ -1,6 +1,7 @@
 /**
  * Cron Job para Timer de Descanso
  * Se ejecuta cada minuto para verificar timers expirados
+ * Llamado por cron-job.org (servicio externo gratuito)
  */
 
 import { NextResponse } from 'next/server';
@@ -11,15 +12,6 @@ export const maxDuration = 10; // 10 segundos max
 
 export async function GET(request) {
   try {
-    // Verificar autorización (Vercel Cron envía CRON_SECRET)
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-    
-    // Permitir si no hay secret (desarrollo) o si coincide
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    
     // Chequear timers expirados y notificar
     const results = await checkExpiredTimers();
     
