@@ -8,7 +8,7 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-
+// ─── Peso corporal ────────────────────────────────────────────
 model WeightLog {
   id        String   @id @default(cuid())
   weight    Float
@@ -16,93 +16,77 @@ model WeightLog {
   createdAt DateTime @default(now())
 }
 
-
-model Routine {
-  id          String   @id @default(cuid())
-  name        String   // "Push Day", "Pull Day"
-  daysOfWeek  String[] // ["Monday", "Thursday"]
-  exercises   RoutineExercise[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Exercise {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  muscleGroup  String   // "Chest", "Back", "Legs"
-  notes        String?
-  routines     RoutineExercise[]
-  workoutSets  WorkoutSet[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model RoutineExercise {
-  id          String   @id @default(cuid())
-  routineId   String
-  exerciseId  String
-  order       Int      @default(0) // Control display order
-  
-  routine     Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
-  exercise    Exercise @relation(fields: [exerciseId], references: [id])
-
-  @@index([routineId])
-  @@index([exerciseId])
-}
-
+// ─── Sesiones de entrenamiento ────────────────────────────────
 model WorkoutSession {
   id              String   @id @default(cuid())
   date            DateTime @default(now())
-  routineName     String?  // "Pecho / Espalda", "Pierna", etc. or "Rest"
-  durationSeconds Int?     // Total time in seconds
-  totalCalories   Float?   // Calculated
-  
+  muscleGroup     String   // "Pecho/Espalda", "Pierna", "Brazos"
+  durationMinutes Int?     // Duracion total en minutos
+  totalCalories   Float?   // Calculado por AI
+
   didCardio       Boolean  @default(false)
+  cardioType      String?  // Tipo libre: "caminadora", "eliptica", etc.
   cardioMinutes   Int?
-  cardioIntensity String?  // "Low", "Medium", "High"
-  
+
+  fatigueLevel    Int?     // 1-10, generado por AI
+  nitRating       Int?     // 1-10 (nivel de intensidad total), generado por AI
+  feeling         String?  // Texto libre del usuario sobre como se sintio
+
   notes           String?
-  
+
   sets            WorkoutSet[]
-  
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([muscleGroup])
 }
 
 model WorkoutSet {
   id                String   @id @default(cuid())
   workoutSessionId  String
-  exerciseId        String
-  
-  weight            Float
-  reps              Int
-  isWarmup          Boolean  @default(false)
-  rpe               Int?     // 1-10
-  restTimeUsed      Int?     // seconds from timer
+  exerciseName      String   // Nombre libre: "Press banca", "Sentadilla", etc.
+  weight            Float    // kg
+  sets              Int      // Numero de series
+  reps              Int      // Repeticiones por serie
 
-  // Supersets support (Biseries)
-  weight2           Float?
-  reps2             Int?
-  
   session   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
-  exercise  Exercise       @relation(fields: [exerciseId], references: [id])
 
   @@index([workoutSessionId])
-  @@index([exerciseId])
+  @@index([exerciseName])
 }
 
-model PushSubscription {
-  endpoint   String   @id
-  keys_auth  String
-  keys_p256dh String
+// ─── Reportes AI ──────────────────────────────────────────────
+model DailyReport {
+  id         String   @id @default(cuid())
+  date       DateTime @unique // Un reporte por dia
+  content    String   // JSON stringificado con el analisis del dia
+  weekNumber Int
+  year       Int
   createdAt  DateTime @default(now())
+
+  @@index([weekNumber, year])
 }
 
-// Timer de descanso para Telegram bot
-model TelegramTimer {
+model WeeklyReport {
+  id         String   @id @default(cuid())
+  weekNumber Int
+  year       Int
+  content    String   // JSON stringificado con analisis semanal
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([weekNumber, year])
+}
+
+// ─── Telegram ─────────────────────────────────────────────────
+model TelegramMessage {
   id        String   @id @default(cuid())
-  chatId    String   @unique // Solo un timer activo por usuario
-  endTime   DateTime
-  minutes   Int
-  createdAt DateTime @default(now())
+  chatId    String
+  messageId Int      // ID del mensaje en Telegram para poder borrarlo
+  sentAt    DateTime @default(now())
+
+  @@index([chatId])
+  @@index([sentAt])
 }

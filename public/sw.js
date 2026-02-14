@@ -1,22 +1,16 @@
-self.addEventListener('push', (event) => {
-  let payload = {};
-  try {
-    payload = event.data ? event.data.json() : {};
-  } catch {
-    payload = { body: event.data?.text?.() };
-  }
+// GymTracker Service Worker v2
+// Immediately take control and clear any stale caches from previous versions
 
-  const title = payload.title || '¡Descanso Terminado!';
-  const options = {
-    body: payload.body || 'Tu temporizador ha finalizado. Regresa al entrenamiento.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
-    vibrate: [200, 100, 200],
-    tag: 'timer-end',
-    data: payload.data || { url: '/' }
-  };
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
 
-  event.waitUntil(self.registration.showNotification(title, options));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(names.map((name) => caches.delete(name)))
+    ).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

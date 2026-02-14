@@ -1,6 +1,6 @@
 {
   "name": "gym-tracker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -15,18 +15,15 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
-    "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "^5.10.0",
-    "@upstash/qstash": "^2.8.4",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.0",
-    "groq-sdk": "^0.16.0",
+    "framer-motion": "^11.0.0",
     "lucide-react": "^0.330.0",
     "next": "^14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "tailwind-merge": "^2.2.0",
-    "web-push": "^3.6.7"
+    "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

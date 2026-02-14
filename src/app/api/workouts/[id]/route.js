@@ -1,28 +1,26 @@
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
-function getMode(request) {
-    if (!request.cookies) {
-        return 'main';
-    }
-    return request.cookies.get('app_mode')?.value ?? 'main';
-}
-
-// PATCH: Actualizar un workout (duración, calorías, etc.)
+// PATCH: Update a workout session
 export async function PATCH(request, { params }) {
     try {
-        const prisma = getPrisma(getMode(request));
         const { id } = params;
         const body = await request.json();
-        
-        const { durationSeconds, totalCalories } = body;
+
+        const updateData = {};
+        if (body.durationMinutes !== undefined) updateData.durationMinutes = body.durationMinutes;
+        if (body.totalCalories !== undefined) updateData.totalCalories = body.totalCalories;
+        if (body.muscleGroup !== undefined) updateData.muscleGroup = body.muscleGroup;
+        if (body.fatigueLevel !== undefined) updateData.fatigueLevel = body.fatigueLevel;
+        if (body.nitRating !== undefined) updateData.nitRating = body.nitRating;
+        if (body.feeling !== undefined) updateData.feeling = body.feeling;
+        if (body.cardioType !== undefined) updateData.cardioType = body.cardioType;
+        if (body.didCardio !== undefined) updateData.didCardio = body.didCardio;
+        if (body.cardioMinutes !== undefined) updateData.cardioMinutes = body.cardioMinutes;
 
         const updated = await prisma.workoutSession.update({
-            where: { id: id }, // Usar el ID como string directamente
-            data: {
-                durationSeconds,
-                totalCalories,
-            }
+            where: { id },
+            data: updateData,
         });
 
         return NextResponse.json(updated);
@@ -35,15 +33,14 @@ export async function PATCH(request, { params }) {
     }
 }
 
-// DELETE: Eliminar un workout (por si acaso lo necesitas después)
+// DELETE: Delete a workout session
 export async function DELETE(request, { params }) {
     try {
-        const prisma = getPrisma(getMode(request));
         const { id } = params;
 
-        await prisma.workoutSession.delete({
-            where: { id: id }
-        });
+        // Delete related sets first, then the session
+        await prisma.workoutSet.deleteMany({ where: { sessionId: id } });
+        await prisma.workoutSession.delete({ where: { id } });
 
         return NextResponse.json({ success: true });
     } catch (error) {

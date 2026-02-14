@@ -1,0 +1,637 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2, Moon } from "lucide-react";
+
+const MUSCLE_GROUPS = [
+  { value: "Pecho/Espalda", label: "Pecho / Espalda" },
+  { value: "Pierna", label: "Pierna" },
+  { value: "Brazos", label: "Brazos" },
+];
+
+const WORKOUT_STEPS = ["muscle", "exercises", "cardio", "duration", "feeling", "summary"];
+const REST_STEPS = ["muscle", "rest-confirm"];
+
+export default function WorkoutLogPage() {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [isRestDay, setIsRestDay] = useState(false);
+
+  // Form state
+  const [muscleGroup, setMuscleGroup] = useState("");
+  const [exerciseCount, setExerciseCount] = useState(1);
+  const [exercises, setExercises] = useState([
+    { name: "", weight: "", sets: "", reps: "" },
+  ]);
+  const [didCardio, setDidCardio] = useState(false);
+  const [cardioType, setCardioType] = useState("");
+  const [cardioMinutes, setCardioMinutes] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("");
+  const [feeling, setFeeling] = useState("");
+
+  const STEPS = isRestDay ? REST_STEPS : WORKOUT_STEPS;
+  const currentStep = STEPS[step];
+
+  const updateExercise = (index, field, value) => {
+    setExercises((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const addExercise = () => {
+    setExercises((prev) => [...prev, { name: "", weight: "", sets: "", reps: "" }]);
+    setExerciseCount((c) => c + 1);
+  };
+
+  const removeExercise = (index) => {
+    if (exercises.length <= 1) return;
+    setExercises((prev) => prev.filter((_, i) => i !== index));
+    setExerciseCount((c) => c - 1);
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case "muscle":
+        return !!muscleGroup;
+      case "exercises":
+        return exercises.every((e) => e.name.trim());
+      case "cardio":
+        return true;
+      case "duration":
+        return true;
+      case "feeling":
+        return true;
+      case "summary":
+        return !!aiResult;
+      case "rest-confirm":
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const handleNext = async () => {
+    if (currentStep === "rest-confirm") {
+      await saveRestDay();
+      return;
+    }
+    if (currentStep === "feeling") {
+      // After feeling, trigger AI analysis then go to summary
+      setStep(step + 1);
+      await analyzeWorkout();
+      return;
+    }
+    if (currentStep === "summary") {
+      await saveWorkout();
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const handleBack = () => {
+    if (step === 0) {
+      router.back();
+      return;
+    }
+    // If going back from rest-confirm, reset rest day state
+    if (currentStep === "rest-confirm") {
+      setIsRestDay(false);
+      setMuscleGroup("");
+    }
+    setStep(step - 1);
+  };
+
+  const selectMuscleGroup = (value) => {
+    if (value === "Descanso") {
+      setMuscleGroup("Descanso");
+      setIsRestDay(true);
+    } else {
+      setMuscleGroup(value);
+      setIsRestDay(false);
+    }
+  };
+
+  const analyzeWorkout = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/coach/analyze-workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          muscleGroup,
+          exercises: exercises.map((e) => ({
+            name: e.name,
+            weight: parseFloat(e.weight) || 0,
+            sets: parseInt(e.sets) || 1,
+            reps: parseInt(e.reps) || 1,
+          })),
+          cardio: didCardio
+            ? { type: cardioType, minutes: parseInt(cardioMinutes) || 0 }
+            : null,
+          feeling,
+          durationMinutes: parseInt(durationMinutes) || null,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiResult(data);
+      } else {
+        setAiResult({
+          totalCalories: 300,
+          nitRating: 5,
+          fatigueLevel: 5,
+          analysis: "No se pudo conectar con AI. Estimaciones por defecto.",
+          normalizedExercises: [],
+        });
+      }
+    } catch (e) {
+      console.error("Analysis error:", e);
+      setAiResult({
+        totalCalories: 300,
+        nitRating: 5,
+        fatigueLevel: 5,
+        analysis: "Error de conexion. Estimaciones por defecto.",
+        normalizedExercises: [],
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const saveWorkout = async () => {
+    if (!aiResult || saving) return;
+    setSaving(true);
+
+    // Apply normalized exercise names if available
+    const normalizedMap = {};
+    if (aiResult.normalizedExercises) {
+      aiResult.normalizedExercises.forEach((ne) => {
+        normalizedMap[ne.original?.toLowerCase()] = ne.normalized;
+      });
+    }
+
+    try {
+      const res = await fetch("/api/workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          muscleGroup,
+          durationMinutes: parseInt(durationMinutes) || null,
+          totalCalories: aiResult.totalCalories,
+          didCardio,
+          cardioType: didCardio ? cardioType : null,
+          cardioMinutes: didCardio ? parseInt(cardioMinutes) : null,
+          fatigueLevel: aiResult.fatigueLevel,
+          nitRating: aiResult.nitRating,
+          feeling,
+          exercises: exercises.map((e) => ({
+            exerciseName:
+              normalizedMap[e.name.trim().toLowerCase()] || e.name.trim(),
+            weight: parseFloat(e.weight) || 0,
+            sets: parseInt(e.sets) || 1,
+            reps: parseInt(e.reps) || 1,
+          })),
+        }),
+      });
+
+      if (res.ok) {
+        // Trigger daily report generation
+        fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "daily" }),
+        }).catch(() => {});
+
+        router.push("/");
+      }
+    } catch (e) {
+      console.error("Save error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveRestDay = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          muscleGroup: "Descanso",
+          durationMinutes: 0,
+          totalCalories: 0,
+          didCardio: false,
+          exercises: [],
+        }),
+      });
+
+      if (res.ok) {
+        // Trigger daily report generation for rest day
+        fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "daily" }),
+        }).catch(() => {});
+
+        router.push("/");
+      }
+    } catch (e) {
+      console.error("Save rest day error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col pt-6 pb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={handleBack}
+          className="p-2 rounded-xl hover:bg-white/5 text-zinc-400 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-lg font-semibold font-display">Registrar Entrenamiento</h1>
+        <div className="w-9" />
+      </div>
+
+      {/* Step Indicator */}
+      <div className="step-indicator justify-center mb-8">
+        {STEPS.map((s, i) => (
+          <div
+            key={s}
+            className={`step-dot ${i === step ? "active" : i < step ? "completed" : ""}`}
+          />
+        ))}
+      </div>
+
+      {/* Step Content */}
+      <div className="flex-1">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            {/* ─── Step: Muscle Group ──────────────────────── */}
+            {currentStep === "muscle" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Que grupo muscular?</h2>
+                <div className="space-y-3">
+                  {MUSCLE_GROUPS.map((mg) => (
+                    <button
+                      key={mg.value}
+                      onClick={() => selectMuscleGroup(mg.value)}
+                      className={`w-full glass-card p-4 text-left transition-all ${
+                        muscleGroup === mg.value
+                          ? "!border-[#00C853] bg-[#00C853]/5"
+                          : "hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <span className="text-base font-medium">{mg.label}</span>
+                    </button>
+                  ))}
+
+                  {/* Descanso option */}
+                  <div className="relative">
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
+                    <button
+                      onClick={() => selectMuscleGroup("Descanso")}
+                      className={`w-full glass-card p-4 text-left transition-all mt-3 ${
+                        muscleGroup === "Descanso"
+                          ? "!border-[#2196F3] bg-[#2196F3]/5"
+                          : "hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Moon className="w-4 h-4 text-[#2196F3]" />
+                        <span className="text-base font-medium">Descanso</span>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1 ml-7">
+                        Registrar dia de descanso
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Step: Exercises ─────────────────────────── */}
+            {currentStep === "exercises" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Ejercicios</h2>
+                <p className="text-sm text-zinc-500">
+                  Escribe el nombre libremente. La AI lo interpreta.
+                </p>
+
+                <div className="space-y-4">
+                  {exercises.map((ex, i) => (
+                    <div key={i} className="glass-card p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-zinc-500 font-medium">
+                          Ejercicio {i + 1}
+                        </span>
+                        {exercises.length > 1 && (
+                          <button
+                            onClick={() => removeExercise(i)}
+                            className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={ex.name}
+                        onChange={(e) => updateExercise(i, "name", e.target.value)}
+                        placeholder="Ej: Press banca, sentadilla, curl..."
+                        className="input-dark"
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] text-zinc-500 mb-1 block">
+                            Peso (kg)
+                          </label>
+                          <input
+                            type="number"
+                            value={ex.weight}
+                            onChange={(e) => updateExercise(i, "weight", e.target.value)}
+                            placeholder="0"
+                            className="input-dark text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-zinc-500 mb-1 block">
+                            Series
+                          </label>
+                          <input
+                            type="number"
+                            value={ex.sets}
+                            onChange={(e) => updateExercise(i, "sets", e.target.value)}
+                            placeholder="3"
+                            className="input-dark text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-zinc-500 mb-1 block">
+                            Reps
+                          </label>
+                          <input
+                            type="number"
+                            value={ex.reps}
+                            onChange={(e) => updateExercise(i, "reps", e.target.value)}
+                            placeholder="10"
+                            className="input-dark text-center"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={addExercise}
+                    className="w-full glass-card p-3 flex items-center justify-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Agregar ejercicio
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Step: Cardio ───────────────────────────── */}
+            {currentStep === "cardio" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Hiciste cardio?</h2>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDidCardio(false)}
+                    className={`flex-1 glass-card p-4 text-center transition-all ${
+                      !didCardio ? "!border-[#00C853] bg-[#00C853]/5" : ""
+                    }`}
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={() => setDidCardio(true)}
+                    className={`flex-1 glass-card p-4 text-center transition-all ${
+                      didCardio ? "!border-[#00C853] bg-[#00C853]/5" : ""
+                    }`}
+                  >
+                    Si
+                  </button>
+                </div>
+
+                {didCardio && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-3"
+                  >
+                    <input
+                      type="text"
+                      value={cardioType}
+                      onChange={(e) => setCardioType(e.target.value)}
+                      placeholder="Tipo: caminadora, eliptica, bici..."
+                      className="input-dark"
+                    />
+                    <div>
+                      <label className="text-xs text-zinc-500 mb-1 block">
+                        Duracion (minutos)
+                      </label>
+                      <input
+                        type="number"
+                        value={cardioMinutes}
+                        onChange={(e) => setCardioMinutes(e.target.value)}
+                        placeholder="20"
+                        className="input-dark"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
+
+            {/* ─── Step: Duration ─────────────────────────── */}
+            {currentStep === "duration" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Duracion total</h2>
+                <p className="text-sm text-zinc-500">
+                  Cuanto tiempo duro tu sesion completa? (aproximado)
+                </p>
+                <div>
+                  <input
+                    type="number"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(e.target.value)}
+                    placeholder="60"
+                    className="input-dark text-center text-2xl font-display"
+                  />
+                  <p className="text-center text-xs text-zinc-500 mt-2">minutos</p>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Step: Feeling ──────────────────────────── */}
+            {currentStep === "feeling" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Como te sentiste?</h2>
+                <p className="text-sm text-zinc-500">
+                  Escribe libremente. La AI genera tu NIT y fatiga.
+                </p>
+                <textarea
+                  value={feeling}
+                  onChange={(e) => setFeeling(e.target.value)}
+                  placeholder="Ej: Me senti bien, subi peso en press banca. Un poco cansado de las piernas de ayer..."
+                  rows={4}
+                  className="input-dark resize-none"
+                />
+              </div>
+            )}
+
+            {/* ─── Step: Summary ──────────────────────────── */}
+            {currentStep === "summary" && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold">Resumen</h2>
+
+                {analyzing ? (
+                  <div className="glass-card p-8 flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 text-[#00C853] animate-spin" />
+                    <p className="text-sm text-zinc-400">AI analizando tu sesion...</p>
+                  </div>
+                ) : aiResult ? (
+                  <div className="space-y-4">
+                    {/* AI Analysis */}
+                    <div className="glass-card p-4 space-y-3">
+                      <p className="text-sm text-zinc-300 leading-relaxed">
+                        {aiResult.analysis}
+                      </p>
+                    </div>
+
+                    {/* Metrics */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="glass-card p-3 text-center">
+                        <p className="text-2xl font-bold font-display text-[#00C853]">
+                          {aiResult.totalCalories}
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mt-1">kcal</p>
+                      </div>
+                      <div className="glass-card p-3 text-center">
+                        <p className="text-2xl font-bold font-display text-[#2196F3]">
+                          {aiResult.nitRating}/10
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mt-1">NIT</p>
+                      </div>
+                      <div className="glass-card p-3 text-center">
+                        <p className="text-2xl font-bold font-display text-orange-400">
+                          {aiResult.fatigueLevel}/10
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mt-1">Fatiga</p>
+                      </div>
+                    </div>
+
+                    {/* Workout Details */}
+                    <div className="glass-card p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-zinc-500">Grupo</span>
+                        <span>{muscleGroup}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-zinc-500">Duracion</span>
+                        <span>{durationMinutes || "?"} min</span>
+                      </div>
+                      {didCardio && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-zinc-500">Cardio</span>
+                          <span>{cardioType} - {cardioMinutes} min</span>
+                        </div>
+                      )}
+                      <div className="border-t border-white/5 pt-2 mt-2 space-y-1.5">
+                        {exercises.map((ex, i) => {
+                          const normalized = aiResult.normalizedExercises?.find(
+                            (ne) => ne.original?.toLowerCase() === ex.name.trim().toLowerCase()
+                          );
+                          return (
+                            <div key={i} className="flex justify-between text-sm">
+                              <span className="text-zinc-300">
+                                {normalized?.normalized || ex.name}
+                              </span>
+                              <span className="text-zinc-500 font-display">
+                                {ex.weight}kg {ex.sets}x{ex.reps}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* ─── Step: Rest Day Confirm ─────────────────── */}
+            {currentStep === "rest-confirm" && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold">Dia de descanso</h2>
+
+                <div className="glass-card p-6 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-[#2196F3]/10 flex items-center justify-center mx-auto">
+                    <Moon className="w-8 h-8 text-[#2196F3]" />
+                  </div>
+                  <div>
+                    <p className="text-zinc-300 text-sm leading-relaxed">
+                      Se registrara hoy como dia de descanso.
+                    </p>
+                    <p className="text-zinc-500 text-xs mt-2">
+                      El descanso es parte del progreso. Tu cuerpo se recupera y crece.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Bottom Action */}
+      <div className="mt-8">
+        <button
+          onClick={handleNext}
+          disabled={!canProceed() || saving || analyzing}
+          className="w-full rounded-2xl bg-[#00C853] py-4 text-black font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-opacity"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
+            </>
+          ) : currentStep === "summary" ? (
+            <>
+              <Check className="w-4 h-4" /> Confirmar y guardar
+            </>
+          ) : currentStep === "rest-confirm" ? (
+            <>
+              <Moon className="w-4 h-4" /> Registrar descanso
+            </>
+          ) : (
+            <>
+              Siguiente <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}

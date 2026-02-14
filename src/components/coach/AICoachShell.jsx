@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bot, SendHorizonal, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const WELCOME_MESSAGE = {
   role: "assistant",
-  content: "Hola, soy tu AI Coach. Pregúntame sobre tu progreso o pide un plan para hoy."
+  content: "Hola, soy tu AI Coach. Preguntame sobre tu progreso, pide corregir un registro, o planifica tu semana."
 };
 
 export function AICoachShell() {
@@ -24,9 +23,7 @@ export function AICoachShell() {
   }, []);
 
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
+    if (open) inputRef.current?.focus();
   }, [open]);
 
   useEffect(() => {
@@ -83,9 +80,9 @@ export function AICoachShell() {
     }
   };
 
-  const handleKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       sendMessage();
     }
   };
@@ -93,66 +90,65 @@ export function AICoachShell() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl rounded-3xl border border-zinc-800 bg-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
-        <div className="flex items-center justify-between border-b border-zinc-800 p-4">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-3xl glass-card shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/5 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
-              <Bot className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-green-dim">
+              <Bot className="h-4 w-4 text-[#00C853]" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">AI Coach</p>
-              <p className="text-xs text-emerald-300">Hola, soy tu AI Coach</p>
+              <p className="text-sm font-semibold">AI Coach</p>
+              <p className="text-xs text-zinc-500">Kimi K2.5</p>
             </div>
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="rounded-full border border-zinc-800 p-2 text-zinc-400 transition-colors hover:text-white"
+            className="rounded-full p-2 text-zinc-500 transition-colors hover:text-white hover:bg-white/5"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div ref={listRef} className="max-h-[55vh] space-y-4 overflow-y-auto px-4 py-3">
-          {messages.map((message, index) => (
+        {/* Messages */}
+        <div ref={listRef} className="max-h-[55vh] space-y-3 overflow-y-auto px-4 py-3 no-scrollbar">
+          {messages.map((msg, i) => (
             <div
-              key={`${message.role}-${index}`}
-              className={cn(
-                "flex",
-                message.role === "user" ? "justify-end" : "justify-start"
-              )}
+              key={`${msg.role}-${i}`}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-2 text-sm leading-relaxed",
-                  message.role === "user"
-                    ? "bg-emerald-500/20 text-emerald-100"
-                    : "bg-zinc-900 text-zinc-200"
-                )}
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  msg.role === "user"
+                    ? "bg-[#00C853]/15 text-green-100"
+                    : "bg-white/5 text-zinc-300"
+                }`}
               >
-                {message.content || (message.role === "assistant" && loading ? "..." : "")}
+                {msg.content || (msg.role === "assistant" && loading ? "..." : "")}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="border-t border-zinc-800 p-4">
+        {/* Input */}
+        <div className="border-t border-white/5 p-4">
           <div className="flex items-center gap-3">
             <textarea
               ref={inputRef}
-              rows={2}
+              rows={1}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Escribe tu mensaje..."
-              className="flex-1 resize-none rounded-2xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="input-dark flex-1 resize-none !rounded-2xl !py-2.5 text-sm"
             />
             <button
               onClick={sendMessage}
               disabled={loading}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-300 transition-colors hover:bg-emerald-500/30 disabled:opacity-60"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00C853]/15 text-[#00C853] transition-colors hover:bg-[#00C853]/25 disabled:opacity-40"
             >
-              <SendHorizonal className="h-5 w-5" />
+              <SendHorizonal className="h-4 w-4" />
             </button>
           </div>
         </div>

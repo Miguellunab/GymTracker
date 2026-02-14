@@ -1,46 +1,34 @@
 # Agentes de IA en GymTracker
 
-GymTracker incorpora agentes inteligentes potenciados por LLMs (Large Language Models) utilizando la API de Groq para ofrecer una experiencia de entrenamiento personalizada.
+GymTracker incorpora agentes inteligentes potenciados por Kimi K2.5 (via NVIDIA NIM) para ofrecer una experiencia de entrenamiento personalizada.
 
-## 🤖 Coach Personal (In-App)
+## Coach Personal (In-App)
 
-El sistema principal de IA funciona como un entrenador personal integrado directamente en la interfaz de usuario.
+El sistema principal de IA funciona como un entrenador personal integrado directamente en la interfaz.
 
 ### Capacidades
-1. **Coach Diario (`DailyCoachTip`)**:
-   - Analiza tu historial de los últimos 10 días.
-   - Detecta patrones (días consecutivos, falta de entreno, grupos musculares repetidos).
-   - Genera un consejo proactivo al abrir el dashboard (ej: "Hoy toca pierna" o "Descansa, llevas 4 días seguidos").
-   - **Nota:** Si entrenas hoy, el consejo se actualiza automáticamente a "Recuperación" en tu próxima visita.
-
-2. **Feedback Post-Entrenamiento (`PostWorkoutFeedback`)**:
-   - Se activa al guardar una rutina.
-   - Evalúa la intensidad basada en duración y calorías quemadas.
-   - Proporciona retroalimentación inmediata (felicitación o corrección suave) y una calificación de estrellas.
-
-3. **Chat Interactivo (`AICoachShell`)**:
-   - Interfaz conversacional tipo chat.
-   - Mantiene contexto de tus últimos entrenamientos, calendario de 60 días y récords personales.
-   - Responde preguntas específicas sobre tu progreso o planificación.
+1. **Coach Diario**: Consejo proactivo en el home basado en entrenamientos recientes y reportes semanales.
+2. **Análisis de Entrenamiento**: Interpreta ejercicios con texto libre, calcula calorías, genera ratings NIT y fatiga.
+3. **Chat Interactivo (`AICoachShell`)**: Interfaz conversacional con contexto de entrenamientos, puede modificar sesiones (UPDATE_SESSION, DELETE_SESSION).
+4. **Reportes**: Generación automática de reportes diarios y semanales para mantener contexto eficiente.
 
 ### Arquitectura Técnica
-- **Frontend**: Componentes React (`DailyCoachTip.jsx`, `PostWorkoutFeedback.jsx`, `AICoachShell.jsx`) que gestionan la UI y el estado de carga.
-- **Backend**: API Routes de Next.js (`/api/coach/*`) que actúan como proxy seguro hacia Groq.
-- **Modelos**: Utiliza modelos eficientes como `llama-3.3-70b-versatile` o `moonshotai/kimi-k2-instruct` para respuestas rápidas y naturales en español.
-- **Contexto**: Se inyectan datos de Prisma (sesiones, pesos, ejercicios) en el prompt del sistema para "grounding" (evitar alucinaciones sobre el historial del usuario).
+- **Frontend**: Componentes React (`AICoachShell.jsx`, `AICoachTrigger.jsx`) + páginas con Framer Motion.
+- **Backend**: API Routes de Next.js (`/api/coach/*`, `/api/reports/*`) como proxy hacia NVIDIA NIM.
+- **Modelo**: `moonshotai/kimi-k2-5` via `https://integrate.api.nvidia.com/v1/chat/completions` (OpenAI-compatible).
+- **Contexto**: Reporte semanal actual + anterior (no historial completo) inyectado via `buildReportContext()`.
+- **Cliente centralizado**: `src/lib/nvidia-nim.js` con funciones `chat()`, `chatJSON()`, `buildReportContext()`.
 
----
+## Bot de Telegram
 
-## 🛠️ Agente CLI (Experimental)
+- Coach diario via Telegram con tips matutinos.
+- Auto-eliminación de mensajes >24h.
+- Tracking de mensajes enviados en DB (`TelegramMessage` model).
+- Tono más insistente si el usuario lleva días sin entrenar.
 
-Ubicado en la carpeta `agent/`, existe un prototipo de agente de línea de comandos escrito en TypeScript.
-
-- **Propósito**: Herramienta de desarrollo o administración para interactuar con la lógica del gimnasio desde la terminal.
-- **Estado**: Experimental / Prototipo.
-- **Ejecución**: `npx tsx agent/agent.ts` (requiere variables de entorno configuradas).
-
-## 🔮 Futuro
-
-- **Planificación Semanal**: Agente capaz de generar rutinas completas para la semana basada en objetivos.
-- **Análisis de Técnica**: (A largo plazo) Análisis de video o input de usuario más detallado sobre la ejecución.
-- **Integración con Wearables**: Ingesta de datos de salud para ajustar recomendaciones de descanso.
+## Stack
+- NVIDIA NIM API (Kimi K2.5)
+- PostgreSQL (Neon) + Prisma
+- Next.js 14 (App Router)
+- Framer Motion para animaciones
+- PWA con service worker

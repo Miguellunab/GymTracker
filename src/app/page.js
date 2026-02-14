@@ -1,81 +1,311 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { format, differenceInDays } from 'date-fns';
-import { enUS } from 'date-fns/locale'; // MOCK_ROUTINES keys are in English
-import DashboardCalendar from '@/components/dashboard/DashboardCalendar';
-import DayRoutineCard from '@/components/dashboard/DayRoutineCard';
-import { MOCK_ROUTINES } from '@/lib/data';
-import { History, TrendingUp, Scale, AlertCircle } from 'lucide-react';
-import Link from 'next/link';
-import { AICoachTrigger } from '@/components/coach/AICoachTrigger';
-import { DailyCoachTip } from '@/components/coach/DailyCoachTip';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { format, startOfWeek, addDays, isSameDay } from "date-fns";
+import { es } from "date-fns/locale";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Plus,
+  Flame,
+  Clock,
+  Zap,
+  Activity,
+  Dumbbell,
+  Heart,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { AICoachTrigger } from "@/components/coach/AICoachTrigger";
 
 export default function HomePage() {
-  const [date, setDate] = useState(new Date());
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [weekStart, setWeekStart] = useState(null);
+  const [calendarData, setCalendarData] = useState({});
+  const [daySession, setDaySession] = useState(null);
+  const [coachTip, setCoachTip] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Get day string for mock lookup (Monday, Tuesday...)
-  // Note: MOCK_ROUTINES keys are still in English ("Monday") because I didn't change the keys in data.js, only values.
-  const dayNameKey = format(date, 'EEEE', { locale: enUS });
-  const routine = MOCK_ROUTINES[dayNameKey];
-  
+  // Initialize dates only on client to avoid SSR/hydration mismatch
+  useEffect(() => {
+    const now = new Date();
+    setSelectedDate(now);
+    setWeekStart(startOfWeek(now, { weekStartsOn: 1 }));
+    setMounted(true);
+  }, []);
+
+  // Generate 7 days for the week
+  const weekDays = weekStart
+    ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    : [];
+
+  // Fetch calendar data for visible range
+  const fetchCalendar = useCallback(async () => {
+    if (!weekStart) return;
+    try {
+      const start = format(weekStart, "yyyy-MM-dd");
+      const end = format(addDays(weekStart, 6), "yyyy-MM-dd");
+      const res = await fetch(`/api/calendar?start=${start}&end=${end}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarData(data);
+      }
+    } catch (e) {
+      console.error("Calendar fetch error:", e);
+    }
+  }, [weekStart]);
+
+  // Fetch session for selected day
+  const fetchDaySession = useCallback(async () => {
+    if (!selectedDate) return;
+    try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const res = await fetch(`/api/workouts?date=${dateStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDaySession(data);
+      } else {
+        setDaySession(null);
+      }
+    } catch (e) {
+      console.error("Day session fetch error:", e);
+      setDaySession(null);
+    }
+  }, [selectedDate]);
+
+  // Fetch daily coach tip
+  const fetchCoachTip = useCallback(async () => {
+    if (!selectedDate) return;
+    try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const res = await fetch(`/api/coach/daily?date=${dateStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCoachTip(data);
+      }
+    } catch (e) {
+      console.error("Coach tip fetch error:", e);
+    }
+  }, [selectedDate]);
+
+  // Initial data load + whenever selected date changes
+  useEffect(() => {
+    if (!mounted || !selectedDate || !weekStart) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    async function loadData() {
+      await Promise.all([fetchDaySession(), fetchCalendar()]);
+      if (!cancelled) setLoading(false);
+      // Coach tip loads independently (slower, not blocking UI)
+      fetchCoachTip();
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [mounted, fetchDaySession, fetchCalendar, fetchCoachTip]);
+
+  const goToPreviousWeek = () => setWeekStart(addDays(weekStart, -7));
+  const goToNextWeek = () => setWeekStart(addDays(weekStart, 7));
+
+  // Before mount, render loading skeleton
+  if (!mounted || !selectedDate || !weekStart) {
+    return (
+      <div className="pt-12 pb-8 flex items-center justify-center min-h-[60vh]">
+        <div className="w-6 h-6 border-2 border-[#00C853] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const isToday = isSameDay(selectedDate, new Date());
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+
   return (
-    <div className="min-h-screen bg-black pb-24">
-      {/* Header */}
-      <header className="pt-8 px-4 pb-4">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <p className="text-zinc-500 font-medium text-sm uppercase tracking-wider">Bienvenido, Miguel</p>
-              <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+    <div className="pt-12 pb-8 space-y-6">
+      {/* Greeting + Date */}
+      <div>
+        <h1 className="text-2xl font-bold font-display capitalize">
+          {isToday ? "Hoy" : format(selectedDate, "EEEE", { locale: es })}
+        </h1>
+        <p className="text-sm text-zinc-500 mt-0.5">
+          {format(selectedDate, "d 'de' MMMM, yyyy", { locale: es })}
+        </p>
+      </div>
+
+      {/* Horizontal Week Calendar */}
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={goToPreviousWeek}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-medium text-zinc-400 capitalize">
+            {format(weekStart, "MMMM yyyy", { locale: es })}
+          </span>
+          <button
+            onClick={goToNextWeek}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex justify-between gap-1">
+          {weekDays.map((day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const isSelected = isSameDay(day, selectedDate);
+            const hasWorkout = !!calendarData[dateStr];
+            const isDayToday = isSameDay(day, new Date());
+
+            return (
+              <button
+                key={dateStr}
+                onClick={() => setSelectedDate(day)}
+                className={`day-pill ${isSelected ? "active" : hasWorkout ? "has-workout" : "rest"}`}
+              >
+                <span className="text-[10px] font-medium opacity-60">
+                  {format(day, "EEE", { locale: es }).slice(0, 2).toUpperCase()}
+                </span>
+                <span className="text-lg font-bold font-display">
+                  {format(day, "d")}
+                </span>
+                {isDayToday && !isSelected && (
+                  <div className="w-1 h-1 rounded-full bg-[#00C853] mt-0.5" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Day Data Panel */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={selectedDateStr}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-4"
+        >
+          {/* Stats Grid */}
+          <div className="stat-grid">
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Dumbbell className="w-3 h-3" /> Grupo
+              </span>
+              <span className="stat-value text-base">
+                {daySession?.muscleGroup || "Descanso"}
+              </span>
             </div>
-            <div className="h-10 w-10 rounded-full border border-zinc-700 overflow-hidden relative">
-                 <img src="/profile.jpg" alt="Profile" className="w-full h-full object-cover" />
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Flame className="w-3 h-3" /> Calorias
+              </span>
+              <span className="stat-value">
+                {daySession?.totalCalories || 0}
+                <span className="text-xs font-normal text-zinc-500 ml-1">kcal</span>
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> Duracion
+              </span>
+              <span className="stat-value">
+                {daySession?.durationMinutes || 0}
+                <span className="text-xs font-normal text-zinc-500 ml-1">min</span>
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Activity className="w-3 h-3" /> Fatiga
+              </span>
+              <span className="stat-value">
+                {daySession?.fatigueLevel || 0}
+                <span className="text-xs font-normal text-zinc-500 ml-1">/10</span>
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Zap className="w-3 h-3" /> NIT
+              </span>
+              <span className="stat-value">
+                {daySession?.nitRating || 0}
+                <span className="text-xs font-normal text-zinc-500 ml-1">/10</span>
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label flex items-center gap-1.5">
+                <Heart className="w-3 h-3" /> Cardio
+              </span>
+              <span className="stat-value text-base">
+                {daySession?.didCardio
+                  ? `${daySession.cardioMinutes || 0} min`
+                  : "No"}
+              </span>
             </div>
           </div>
-      </header>
 
-      {/* Calendar Strip */}
-      <section className="mb-4">
-         <DashboardCalendar 
-            selectedDate={date} 
-            onSelectDate={setDate}
-         />
-      </section>
+          {/* Exercises List */}
+          {daySession?.sets && daySession.sets.length > 0 && (
+            <div className="glass-card p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-zinc-400">Ejercicios</h3>
+              <div className="space-y-2">
+                {daySession.sets.map((set, i) => (
+                  <div key={set.id || i} className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0">
+                    <span className="text-sm">{set.exerciseName}</span>
+                    <span className="text-sm text-zinc-400 font-display">
+                      {set.weight}kg {set.sets}x{set.reps}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!daySession && !loading && (
+            <div className="glass-card p-6 text-center">
+              <p className="text-zinc-500 text-sm">Sin entrenamiento registrado</p>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Daily Coach Tip */}
-      <section className="px-4 mb-6">
-          <DailyCoachTip date={date} />
-      </section>
+      {coachTip && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="glass-card p-4 space-y-2"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#00C853]" />
+            <span className="text-xs font-semibold text-[#00C853]">
+              {coachTip.action || "Coach Tip"}
+            </span>
+          </div>
+          <p className="text-sm text-zinc-300 leading-relaxed">{coachTip.message}</p>
+        </motion.div>
+      )}
 
-      {/* Main Action Card */}
-      <section className="mb-8">
-         <DayRoutineCard 
-            selectedDate={date}
-            dayName={format(date, 'EEEE', { locale: enUS })}
-            routineName={routine?.name}
-            onAdvanceDate={() => {
-                const nextDay = new Date(date);
-                nextDay.setDate(nextDay.getDate() + 1);
-                setDate(nextDay);
-            }}
-         />
-      </section>
+      {/* AI Coach Card */}
+      <AICoachTrigger />
 
-      {/* Quick Stats / History access */}
-      <section className="px-4 grid grid-cols-2 gap-3">
-          <Link href="/history" className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center gap-2 hover:bg-zinc-800 transition-colors">
-               <History className="w-8 h-8 text-emerald-500" />
-               <span className="text-sm font-bold text-zinc-300">Historial</span>
-          </Link>
-           <Link href="/profile" className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center gap-2 hover:bg-zinc-800 transition-colors">
-               <Scale className="w-8 h-8 text-blue-500" />
-               <span className="text-sm font-bold text-zinc-300">Tu Peso</span>
-          </Link>
-      </section>
-
-      <section className="px-4 mt-6">
-        <AICoachTrigger variant="card" />
-      </section>
+      {/* FAB - Register Workout */}
+      <button
+        onClick={() => router.push("/workout/log")}
+        className="fab"
+      >
+        <Plus className="w-5 h-5" />
+        <span className="text-sm">Registrar</span>
+      </button>
     </div>
   );
 }

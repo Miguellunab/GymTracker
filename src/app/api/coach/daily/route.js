@@ -1,102 +1,68 @@
-import { Groq } from 'groq-sdk';
-import { getPrisma } from '@/lib/prisma';
-import { differenceInDays } from 'date-fns';
+import { chatJSON, buildReportContext } from '@/lib/nvidia-nim';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
-function getMode(request) {
-  // Check if cookies exists on the request
-  if (!request.cookies) {
-    return 'main';
-  }
-  return request.cookies.get('app_mode')?.value ?? 'main';
-}
-
 export async function GET(request) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return Response.json({ message: "API Key missing" }, { status: 500 });
-  }
-
   const { searchParams } = new URL(request.url);
   const dateParam = searchParams.get('date');
-  
-  // Use provided date or default to today
-  // Important: The "Reference Today" for the coach is the selected date in the UI
   const referenceDate = dateParam ? new Date(dateParam) : new Date();
-  
+
   try {
-    const prisma = getPrisma(getMode(request));
-    
-    // 1. Get recent history (last 10 days RELATIVE TO REFERENCE DATE)
-    const start10 = new Date(referenceDate);
-    start10.setDate(start10.getDate() - 10);
-    
-    const recentSessions = await prisma.workoutSession.findMany({
-        where: { 
-            date: { 
-                gte: start10,
-                lte: referenceDate // Don't look into the future relative to the selected date
-            } 
-        },
-        orderBy: { date: 'desc' },
-        select: { date: true, routineName: true, durationSeconds: true }
+    // Check if user already trained on the reference date
+    const refDateStr = referenceDate.toISOString().slice(0, 10);
+    const startOfDay = new Date(refDateStr);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(refDateStr);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todaySession = await prisma.workoutSession.findFirst({
+      where: {
+        date: { gte: startOfDay, lte: endOfDay }
+      }
     });
 
-    // 2. Logic Analysis (Pre-LLM)
-    const refDateStr = referenceDate.toISOString().slice(0, 10);
-    
-    // Check if user already trained on the REFERENCE DATE
-    // We check the first session because of 'desc' order
-    if (recentSessions.length > 0) {
-        const lastSessionDate = new Date(recentSessions[0].date).toISOString().slice(0, 10);
-        
-        if (lastSessionDate === refDateStr) {
-             return Response.json({ 
-                 message: "Ya hay un registro para este día. ¡Buen trabajo!",
-                 action: "Recuperación"
-             });
-        }
+    if (todaySession) {
+      return Response.json({
+        message: `Ya entrenaste hoy (${todaySession.muscleGroup}). Descansa y recuperate bien.`,
+        action: 'Recuperacion'
+      });
     }
 
-    // 3. Construct Prompt for Coach
-    const historyText = recentSessions.map(s => 
-        `- ${new Date(s.date).toISOString().slice(0,10)}: ${s.routineName}`
-    ).join('\n');
+    // Get report context for informed tip
+    const reportContext = await buildReportContext(prisma);
 
-    const prompt = `
-        Eres un Coach de Gym experto. Analiza el historial reciente de tu atleta y dale UN consejo para la fecha objetivo: ${refDateStr}.
-        
-        Historial (últimos 10 días previos a la fecha):
-        ${historyText || "No hay entrenamientos recientes."}
-        
-        Reglas:
-        1. Si entrenó más de 3 días seguidos recientemente, sugiere descanso activo o ligero.
-        2. Si no ha entrenado en 3+ días, motívalo a volver suave.
-        3. Si el día anterior hizo Pecho/Espalda, sugiere Pierna o Descanso.
-        4. Si el día anterior hizo Pierna, sugiere Torso o Descanso.
-        5. Sé breve (máximo 2 frases).
-        6. Tu respuesta debe ser JSON puro con este formato: { "message": "tu consejo", "action": "acción clave corta" }
-    `;
+    const prompt = `Eres un Coach de Gym experto para un atleta que sigue Arnold Split (Pecho/Espalda, Pierna, Brazos) 3 dias por semana.
 
-    const groq = new Groq({ apiKey });
-    const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.5,
-        response_format: { type: "json_object" }
-    });
+Fecha de referencia: ${refDateStr}
 
-    const responseContent = completion.choices[0]?.message?.content;
-    const jsonResponse = JSON.parse(responseContent);
+${reportContext}
 
-    return Response.json(jsonResponse);
+Genera UN consejo personalizado para hoy basado en:
+1. Que grupo muscular toca segun su patron (siempre pone pierna entre dias de torso).
+2. Si lleva muchos dias sin entrenar, motivalo con urgencia.
+3. Si entreno mucho seguido, sugiere descanso.
+4. Si hay fatiga acumulada alta, sugiere sesion ligera.
+5. Se breve (maximo 2 frases).
+
+Responde SOLO con JSON:
+{
+  "message": "tu consejo personalizado",
+  "action": "Entrenar Pierna | Entrenar Pecho/Espalda | Entrenar Brazos | Descanso | Descanso Activo"
+}`;
+
+    const result = await chatJSON(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.6, maxTokens: 256 }
+    );
+
+    return Response.json(result);
 
   } catch (error) {
-    console.error("Coach API Error", error);
-    return Response.json({ 
-        message: "Hoy es un gran día para moverte. ¡Escucha a tu cuerpo!", 
-        action: "Entrenar" 
+    console.error('Daily coach error:', error);
+    return Response.json({
+      message: 'Hoy es un gran dia para moverte. Escucha a tu cuerpo!',
+      action: 'Entrenar'
     });
   }
 }

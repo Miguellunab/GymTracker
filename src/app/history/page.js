@@ -1,208 +1,269 @@
 "use client";
 
-import { History, Flame, Timer, Calendar, Edit2, X, Check } from "lucide-react";
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { format, startOfWeek, addDays } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  ChevronDown,
+  ChevronRight,
+  Flame,
+  Clock,
+  Activity,
+  Zap,
+  Calendar,
+  TrendingUp,
+} from "lucide-react";
 
 export default function HistoryPage() {
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [editingId, setEditingId] = useState(null);
-    const [editDuration, setEditDuration] = useState('');
-    const [userWeight, setUserWeight] = useState(75);
+  const [sessions, setSessions] = useState([]);
+  const [weeklyReports, setWeeklyReports] = useState({});
+  const [expandedWeek, setExpandedWeek] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const [historyRes, weightRes] = await Promise.all([
-                    fetch('/api/workouts'),
-                    fetch('/api/weight')
-                ]);
-                const historyData = await historyRes.json();
-                const weightData = await weightRes.json();
-                
-                setHistory(historyData);
-                if (weightData && weightData.length > 0) {
-                    setUserWeight(weightData[0].weight);
-                }
-            } catch (e) {
-                console.error("Failed to load data");
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchData();
-    }, []);
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
-    const calculateCalories = (durationMinutes, routineName, cardioData) => {
-        // Factor de intensidad según tipo de rutina
-        let intensityFactor = 0.06; // Base: 0.06 kcal/kg/min
-        
-        // Pierna tiene mayor consumo calórico
-        const routineLower = (routineName || '').toLowerCase();
-        if (routineLower.includes('pierna') || routineLower.includes('cuadriceps') || 
-            routineLower.includes('femoral') || routineLower.includes('leg')) {
-            intensityFactor = 0.08; // 33% más calorías para pierna
-        }
-        
-        const liftCals = intensityFactor * userWeight * durationMinutes;
-        
-        let cardioCals = 0;
-        if (cardioData?.didCardio) {
-            let cardioMET = 7.0;
-            if (cardioData.cardioIntensity === 'Low') cardioMET = 5.0;
-            if (cardioData.cardioIntensity === 'High') cardioMET = 10.0;
-            
-            const cardioMinutes = Number(cardioData.cardioMinutes) || 0;
-            cardioCals = cardioMET * userWeight * (cardioMinutes / 60);
-        }
-        
-        return Math.floor(liftCals + cardioCals);
-    };
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch("/api/workouts?limit=100");
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data || []);
+      }
+    } catch (e) {
+      console.error("History fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleEditDuration = (session) => {
-        setEditingId(session.id);
-        // Dejamos el campo vacío para que el usuario escriba desde cero
-        setEditDuration('');
-    };
+  const fetchWeeklyReport = async (weekNumber, year) => {
+    const key = `${year}-${weekNumber}`;
+    if (weeklyReports[key]) return;
 
-    const handleSaveDuration = async (session) => {
-        const newDurationMinutes = Number(editDuration) || 0;
-        const newDurationSeconds = newDurationMinutes * 60;
-        
-        // Recalcular calorías con la nueva duración
-        const newCalories = calculateCalories(newDurationMinutes, session.routineName, {
-            didCardio: session.didCardio,
-            cardioMinutes: session.cardioMinutes,
-            cardioIntensity: session.cardioIntensity
-        });
+    try {
+      const res = await fetch(`/api/reports?type=weekly&week=${weekNumber}&year=${year}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWeeklyReports((prev) => ({ ...prev, [key]: data.content }));
+      }
+    } catch (e) {
+      console.error("Weekly report fetch error:", e);
+    }
+  };
 
-        try {
-            const res = await fetch(`/api/workouts/${session.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    durationSeconds: newDurationSeconds,
-                    totalCalories: newCalories
-                })
-            });
+  // Group sessions by ISO week
+  const getWeekNumber = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  };
 
-            if (res.ok) {
-                // Actualizar estado local
-                setHistory(prev => prev.map(s => 
-                    s.id === session.id 
-                        ? { ...s, durationSeconds: newDurationSeconds, totalCalories: newCalories }
-                        : s
-                ));
-                setEditingId(null);
-            }
-        } catch (e) {
-            console.error("Failed to update workout");
-        }
-    };
+  const groupedByWeek = sessions.reduce((acc, session) => {
+    const date = new Date(session.date);
+    const weekNum = getWeekNumber(date);
+    const year = date.getFullYear();
+    const key = `${year}-${weekNum}`;
 
-    const handleCancelEdit = () => {
-        setEditingId(null);
-        setEditDuration('');
-    };
+    if (!acc[key]) {
+      acc[key] = {
+        weekNumber: weekNum,
+        year,
+        weekStart: startOfWeek(date, { weekStartsOn: 1 }),
+        sessions: [],
+      };
+    }
+    acc[key].sessions.push(session);
+    return acc;
+  }, {});
 
-    // Filter out "Descanso" or empty routine names that act as placeholders
-    const visibleHistory = history.filter(s => s.routineName && s.routineName !== 'Descanso');
+  const weeks = Object.entries(groupedByWeek).sort(
+    ([a], [b]) => b.localeCompare(a)
+  );
 
-    if (loading) return <div className="p-10 text-zinc-500">Cargando...</div>;
+  const toggleWeek = (key) => {
+    if (expandedWeek === key) {
+      setExpandedWeek(null);
+    } else {
+      setExpandedWeek(key);
+      const week = groupedByWeek[key];
+      fetchWeeklyReport(week.weekNumber, week.year);
+    }
+  };
 
+  if (loading) {
     return (
-        <div className="min-h-screen bg-black pb-24 p-4">
-             <header className="mb-6 mt-4">
-                <h1 className="text-2xl font-bold text-white">Historial</h1>
-                <p className="text-zinc-500 text-sm">Tus últimos entrenamientos</p>
-             </header>
-
-             <div className="space-y-4">
-                 {visibleHistory.map((session) => (
-                     <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3">
-                         <div className="flex justify-between items-start">
-                             <div>
-                                 <h3 className="text-white font-bold text-lg">{session.routineName}</h3>
-                                 <div className="flex items-center gap-2 text-zinc-500 text-xs mt-1">
-                                     <Calendar className="w-3 h-3" />
-                                     {/* Display date with timezone fix */}
-                                     {new Date(new Date(session.date).getTime() + new Date(session.date).getTimezoneOffset() * 60000).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
-                                 </div>
-                             </div>
-                             
-                             {editingId === session.id ? (
-                                 <div className="flex items-center gap-2 bg-zinc-800 rounded-lg p-2 border border-zinc-700">
-                                     <Timer className="w-4 h-4 text-emerald-400" />
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={editDuration}
-                                        onChange={(e) => {
-                                            const onlyNums = e.target.value.replace(/\D/g, '');
-                                            setEditDuration(onlyNums);
-                                        }}
-                                        className="w-16 bg-black border border-zinc-600 rounded-lg px-2 py-1.5 text-sm text-white text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-600"
-                                        placeholder="60"
-                                        autoFocus
-                                    />
-                                     <span className="text-xs text-zinc-400 font-medium">min</span>
-                                     <div className="flex gap-1 ml-1">
-                                         <button 
-                                             onClick={() => handleSaveDuration(session)}
-                                             className="p-1.5 bg-emerald-500 text-black rounded-lg hover:bg-emerald-400 transition"
-                                             title="Guardar"
-                                         >
-                                             <Check className="w-4 h-4" />
-                                         </button>
-                                         <button 
-                                             onClick={handleCancelEdit}
-                                             className="p-1.5 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition"
-                                             title="Cancelar"
-                                         >
-                                             <X className="w-4 h-4" />
-                                         </button>
-                                     </div>
-                                 </div>
-                             ) : (
-                                 <div className="flex items-center gap-2">
-                                     <div className="bg-zinc-800 px-3 py-1.5 rounded-lg text-xs text-zinc-300 font-mono flex items-center gap-1.5">
-                                         <Timer className="w-3 h-3 text-zinc-500" />
-                                         {session.durationSeconds ? Math.floor(session.durationSeconds / 60) : 60} min
-                                     </div>
-                                     <button 
-                                         onClick={() => handleEditDuration(session)}
-                                         className="p-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 rounded-lg transition"
-                                         title="Editar duración"
-                                     >
-                                         <Edit2 className="w-4 h-4" />
-                                     </button>
-                                 </div>
-                             )}
-                         </div>
-
-                         <div className="grid grid-cols-2 gap-2 mt-2">
-                             <div className="bg-black/40 p-2 rounded-lg flex items-center gap-2">
-                                 <Flame className="w-4 h-4 text-orange-500" />
-                                 <span className="text-zinc-300 text-sm font-bold">{session.totalCalories || 0} kcal</span>
-                             </div>
-                             <div className="bg-black/40 p-2 rounded-lg flex items-center gap-2">
-                                 <Timer className="w-4 h-4 text-blue-500" />
-                                 <span className="text-zinc-300 text-sm font-bold">
-                                     {session.didCardio ? `+${session.cardioMinutes || 0}m Cardio` : "Sin Cardio"}
-                                 </span>
-                             </div>
-                         </div>
-                     </div>
-                 ))}
-                 
-                 {visibleHistory.length === 0 && (
-                     <div className="text-center text-zinc-600 mt-10">
-                         No hay registros aún.
-                     </div>
-                 )}
-             </div>
-        </div>
+      <div className="pt-12 flex items-center justify-center min-h-[50vh]">
+        <div className="w-6 h-6 border-2 border-[#00C853] border-t-transparent rounded-full animate-spin" />
+      </div>
     );
+  }
+
+  return (
+    <div className="pt-12 pb-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold font-display">Historial</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">Vista semanal de tus entrenamientos</p>
+      </div>
+
+      {weeks.length === 0 ? (
+        <div className="glass-card p-8 text-center">
+          <Calendar className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
+          <p className="text-zinc-500 text-sm">Sin entrenamientos registrados</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {weeks.map(([key, week]) => {
+            const isExpanded = expandedWeek === key;
+            const weekEnd = addDays(week.weekStart, 6);
+            const totalCals = week.sessions.reduce(
+              (sum, s) => sum + (s.totalCalories || 0),
+              0
+            );
+            const avgFatigue =
+              week.sessions.reduce((sum, s) => sum + (s.fatigueLevel || 0), 0) /
+                week.sessions.length || 0;
+
+            return (
+              <div key={key} className="glass-card overflow-hidden">
+                {/* Week Header */}
+                <button
+                  onClick={() => toggleWeek(key)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-semibold">
+                      Semana {week.weekNumber}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {format(week.weekStart, "d MMM", { locale: es })} -{" "}
+                      {format(weekEnd, "d MMM", { locale: es })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm font-display font-bold">
+                        {week.sessions.length}
+                        <span className="text-zinc-500 text-xs font-normal ml-1">dias</span>
+                      </p>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-zinc-500" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-zinc-500" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded Content */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 space-y-4 border-t border-white/5">
+                        {/* Week Summary Stats */}
+                        <div className="grid grid-cols-3 gap-2 pt-3">
+                          <div className="text-center">
+                            <Flame className="w-4 h-4 text-orange-400 mx-auto mb-1" />
+                            <p className="text-sm font-bold font-display">
+                              {Math.round(totalCals)}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">kcal total</p>
+                          </div>
+                          <div className="text-center">
+                            <Activity className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+                            <p className="text-sm font-bold font-display">
+                              {avgFatigue.toFixed(1)}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">fatiga prom</p>
+                          </div>
+                          <div className="text-center">
+                            <TrendingUp className="w-4 h-4 text-[#00C853] mx-auto mb-1" />
+                            <p className="text-sm font-bold font-display">
+                              {week.sessions.length}/3
+                            </p>
+                            <p className="text-[10px] text-zinc-500">adherencia</p>
+                          </div>
+                        </div>
+
+                        {/* AI Weekly Report */}
+                        {weeklyReports[key] && (
+                          <div className="bg-white/[0.02] rounded-xl p-3 space-y-2">
+                            <p className="text-xs font-semibold text-[#00C853] flex items-center gap-1.5">
+                              <Zap className="w-3 h-3" /> Reporte AI
+                            </p>
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                              {weeklyReports[key]?.summary || "Sin reporte disponible."}
+                            </p>
+                            {weeklyReports[key]?.recommendations && (
+                              <div className="space-y-1 mt-2">
+                                {weeklyReports[key].recommendations.map((rec, i) => (
+                                  <p key={i} className="text-[11px] text-zinc-500">
+                                    - {rec}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {weeklyReports[key]?.weekGrade && (
+                              <p className="text-xs text-zinc-500 mt-1">
+                                Nota: <span className="font-bold text-white">{weeklyReports[key].weekGrade}</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Day-by-day Detail */}
+                        <div className="space-y-2">
+                          {week.sessions
+                            .sort((a, b) => new Date(a.date) - new Date(b.date))
+                            .map((session) => (
+                              <div
+                                key={session.id}
+                                className="flex items-center justify-between py-2 border-b border-white/[0.03] last:border-0"
+                              >
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    {session.muscleGroup}
+                                  </p>
+                                  <p className="text-xs text-zinc-500">
+                                    {format(new Date(session.date), "EEEE d", {
+                                      locale: es,
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-zinc-400 font-display">
+                                    {session.totalCalories || 0} kcal
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+                                    <span>F:{session.fatigueLevel || 0}</span>
+                                    <span>N:{session.nitRating || 0}</span>
+                                    {session.durationMinutes && (
+                                      <span>{session.durationMinutes}min</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }

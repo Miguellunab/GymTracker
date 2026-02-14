@@ -1,47 +1,26 @@
 "use client";
 
 import { Bot } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-export function AICoachTrigger({ variant = "nav", className }) {
+export function AICoachTrigger({ className }) {
   const handleOpen = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("ai-coach-open"));
     }
   };
 
-  if (variant === "card") {
-    return (
-      <button
-        onClick={handleOpen}
-        className={cn(
-          "w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 text-left shadow-[0_10px_30px_rgba(0,0,0,0.4)] transition-colors hover:bg-zinc-800/60",
-          className
-        )}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
-            <Bot className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-200">AI Coach</p>
-            <p className="text-xs text-zinc-500">Hola, soy tu AI Coach</p>
-          </div>
-        </div>
-      </button>
-    );
-  }
-
   return (
     <button
       onClick={handleOpen}
-      className={cn(
-        "flex flex-col items-center justify-center gap-1 text-zinc-500 transition-colors hover:text-emerald-400",
-        className
-      )}
+      className={`glass-card-hover p-4 flex items-center gap-3 w-full ${className || ""}`}
     >
-      <Bot className="h-6 w-6" />
-      <span className="text-[11px] font-semibold text-white">Coach</span>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-green-dim">
+        <Bot className="h-5 w-5 text-[#00C853]" />
+      </div>
+      <div className="text-left">
+        <p className="text-sm font-semibold">AI Coach</p>
+        <p className="text-xs text-zinc-500">Preguntame lo que quieras</p>
+      </div>
     </button>
   );
 }

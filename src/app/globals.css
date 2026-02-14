@@ -3,32 +3,69 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 0, 0, 0;
-  --background-end-rgb: 0, 0, 0;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #161616;
+  --bg-card-hover: #1a1a1a;
+  --border: rgba(255, 255, 255, 0.06);
+  --accent-green: #00C853;
+  --accent-green-dim: rgba(0, 200, 83, 0.15);
+  --accent-blue: #2196F3;
+  --accent-blue-dim: rgba(33, 150, 243, 0.15);
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: radial-gradient(circle at 20% 20%, rgba(52, 211, 153, 0.08), transparent 35%),
-    radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.05), transparent 30%),
-    linear-gradient(180deg, #09090b, #060608 60%, #050506);
+  color: var(--text-primary);
+  background: var(--bg-primary);
   min-height: 100vh;
   overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 main {
   min-height: 100vh;
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 }
 
+/* ─── Glass card ─────────────────────────────────────── */
 .glass-card {
-  background: linear-gradient(145deg, rgba(24, 24, 27, 0.9), rgba(15, 15, 18, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 15px 60px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(18px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
 
+.glass-card-hover {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.glass-card-hover:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Accent styles ──────────────────────────────────── */
+.accent-green {
+  color: var(--accent-green);
+}
+.accent-blue {
+  color: var(--accent-blue);
+}
+.bg-accent-green {
+  background-color: var(--accent-green);
+}
+.bg-accent-green-dim {
+  background-color: var(--accent-green-dim);
+}
+.bg-accent-blue-dim {
+  background-color: var(--accent-blue-dim);
+}
+
+/* ─── Scrollbar hidden ───────────────────────────────── */
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -37,3 +74,90 @@ main {
   display: none;
 }
 
+/* ─── Calendar day pill ──────────────────────────────── */
+.day-pill {
+  @apply flex flex-col items-center justify-center rounded-2xl px-3 py-2 min-w-[52px] cursor-pointer transition-all duration-200;
+}
+.day-pill.active {
+  background: var(--accent-green);
+  color: #000;
+}
+.day-pill.has-workout {
+  border: 1.5px solid var(--accent-green);
+}
+.day-pill.rest {
+  border: 1.5px solid transparent;
+}
+
+/* ─── FAB button ─────────────────────────────────────── */
+.fab {
+  @apply fixed z-50 flex items-center gap-2 rounded-full px-5 py-3.5 font-semibold shadow-xl;
+  background: var(--accent-green);
+  color: #000;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  right: 1rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 32px rgba(0, 200, 83, 0.3);
+}
+.fab:active {
+  transform: scale(0.98);
+}
+
+/* ─── Stat card grid ─────────────────────────────────── */
+.stat-grid {
+  @apply grid grid-cols-2 gap-3;
+}
+.stat-item {
+  @apply glass-card p-3.5 flex flex-col gap-1;
+}
+.stat-label {
+  @apply text-xs font-medium;
+  color: var(--text-secondary);
+}
+.stat-value {
+  @apply text-lg font-bold font-display;
+}
+
+/* ─── Input field styles ─────────────────────────────── */
+.input-dark {
+  @apply w-full rounded-xl border bg-zinc-900/50 px-4 py-3 text-sm outline-none transition-all;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+.input-dark:focus {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 2px var(--accent-green-dim);
+}
+.input-dark::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── Bottom navbar safe area ────────────────────────── */
+.bottom-nav {
+  @apply fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  border-color: var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(4rem + env(safe-area-inset-bottom));
+}
+
+/* ─── Workout log step indicator ─────────────────────── */
+.step-indicator {
+  @apply flex items-center gap-1;
+}
+.step-dot {
+  @apply w-2 h-2 rounded-full transition-all duration-300;
+  background: var(--text-muted);
+}
+.step-dot.active {
+  @apply w-6;
+  background: var(--accent-green);
+  border-radius: 999px;
+}
+.step-dot.completed {
+  background: var(--accent-green);
+}

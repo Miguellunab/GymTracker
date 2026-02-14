@@ -6,36 +6,32 @@
 import { sendMessage, sendMessageWithKeyboard, sendMessageWithInlineKeyboard, sendChatAction } from '../telegram.js';
 import { MESSAGES, STATES, EMOJI } from '../constants.js';
 import { getMainKeyboard } from '../keyboards/main.js';
-import { getRoutineKeyboard, getExitCoachKeyboard, getCancelKeyboard } from '../keyboards/inline.js';
-import { getState, setState, clearState, initWorkoutState } from '../state.js';
+import { getExitCoachKeyboard, getCancelKeyboard, getCalendarNavKeyboard } from '../keyboards/inline.js';
+import { getState, setState, clearState } from '../state.js';
 
 // Services
-import { getRoutines } from '../services/routines.js';
 import { getRecentWorkouts } from '../services/workout.js';
 import { getLastWeight } from '../services/weight.js';
 import { getMonthCalendar, formatCalendarText } from '../services/calendar.js';
 import { getDailyTip } from '../services/coach.js';
-import { getCalendarNavKeyboard } from '../keyboards/inline.js';
 
 /**
- * /start - Bienvenida e inicialización
+ * /start - Bienvenida
  */
 export async function handleStart(chatId) {
-  // Mostrar mensaje de bienvenida con teclado permanente
   await sendMessageWithKeyboard(
     chatId,
     MESSAGES.WELCOME,
     getMainKeyboard()
   );
-  
-  // Informar el chat_id para configuración (sin markdown problemático)
+
   await sendMessage(chatId, `Tu Chat ID: ${chatId}\n\nConfigura TELEGRAM_OWNER_CHAT_ID con este valor en Vercel.`, { parse_mode: null });
-  
+
   clearState(chatId);
 }
 
 /**
- * /help - Mostrar ayuda
+ * /help
  */
 export async function handleHelp(chatId) {
   await sendMessageWithKeyboard(
@@ -46,27 +42,15 @@ export async function handleHelp(chatId) {
 }
 
 /**
- * /workout - Iniciar registro de entrenamiento
+ * /workout - Registrar entrenamiento (texto libre)
  */
 export async function handleWorkout(chatId) {
-  await sendChatAction(chatId, 'typing');
-  
-  // Obtener rutinas disponibles
-  const routines = await getRoutines();
-  
-  if (!routines || routines.length === 0) {
-    await sendMessage(chatId, 'No hay rutinas configuradas. Crea rutinas desde la web primero.');
-    return;
-  }
-  
-  // Inicializar estado del workout
-  initWorkoutState(chatId);
-  
-  // Mostrar selector de rutinas
+  setState(chatId, STATES.WORKOUT_INPUT);
+
   await sendMessageWithInlineKeyboard(
     chatId,
-    MESSAGES.SELECT_ROUTINE,
-    getRoutineKeyboard(routines)
+    MESSAGES.WORKOUT_PROMPT,
+    getCancelKeyboard()
   );
 }
 
@@ -75,13 +59,13 @@ export async function handleWorkout(chatId) {
  */
 export async function handleWeight(chatId) {
   const lastWeight = await getLastWeight();
-  
+
   setState(chatId, STATES.WEIGHT_INPUT);
-  
-  const lastWeightStr = lastWeight 
+
+  const lastWeightStr = lastWeight
     ? `${lastWeight.weight} kg (${new Date(lastWeight.date).toLocaleDateString('es')})`
     : null;
-  
+
   await sendMessageWithInlineKeyboard(
     chatId,
     MESSAGES.WEIGHT_PROMPT(lastWeightStr),
@@ -94,35 +78,46 @@ export async function handleWeight(chatId) {
  */
 export async function handleHistory(chatId) {
   await sendChatAction(chatId, 'typing');
-  
+
   const workouts = await getRecentWorkouts(7);
-  
+
   if (!workouts || workouts.length === 0) {
     await sendMessage(chatId, MESSAGES.NO_HISTORY);
     return;
   }
-  
+
   let text = MESSAGES.HISTORY_HEADER + '\n';
-  
+
   for (const w of workouts) {
-    const dateStr = new Date(w.date).toLocaleDateString('es', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short' 
+    const dateStr = new Date(w.date).toLocaleDateString('es', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
     });
-    
-    const emoji = w.routineName === 'Descanso' ? EMOJI.REST : EMOJI.WORKOUT;
-    
+
+    const isRest = w.muscleGroup === 'Descanso';
+    const emoji = isRest ? EMOJI.REST : EMOJI.WORKOUT;
+
     let details = '';
-    if (w.routineName !== 'Descanso') {
-      const duration = w.durationSeconds ? Math.round(w.durationSeconds / 60) : 0;
-      const calories = w.totalCalories || 0;
-      details = duration || calories ? ` (${duration}min, ${calories}kcal)` : '';
+    if (!isRest) {
+      const duration = w.durationMinutes || 0;
+      const calories = w.totalCalories ? Math.round(w.totalCalories) : 0;
+      details = ` (${duration}min, ${calories}kcal)`;
+
+      if (w.fatigueLevel) details += ` fatiga:${w.fatigueLevel}/10`;
+      if (w.nitRating) details += ` NIT:${w.nitRating}/10`;
     }
-    
-    text += `${emoji} *${dateStr}* - ${w.routineName}${details}\n`;
+
+    text += `${emoji} *${dateStr}* - ${w.muscleGroup}${details}\n`;
+
+    // Show exercises
+    if (!isRest && w.sets && w.sets.length > 0) {
+      for (const s of w.sets) {
+        text += `  _${s.exercise}: ${s.weight}kg ${s.sets}x${s.reps}_\n`;
+      }
+    }
   }
-  
+
   await sendMessage(chatId, text);
 }
 
@@ -131,20 +126,20 @@ export async function handleHistory(chatId) {
  */
 export async function handleCalendar(chatId, month = null, year = null) {
   await sendChatAction(chatId, 'typing');
-  
+
   const now = new Date();
   const targetMonth = month !== null ? month : now.getMonth();
   const targetYear = year !== null ? year : now.getFullYear();
-  
+
   const calendar = await getMonthCalendar(targetYear, targetMonth);
-  
+
   if (!calendar) {
     await sendMessage(chatId, 'Error al cargar el calendario.');
     return;
   }
-  
+
   const text = formatCalendarText(calendar);
-  
+
   await sendMessageWithInlineKeyboard(
     chatId,
     text,
@@ -157,9 +152,9 @@ export async function handleCalendar(chatId, month = null, year = null) {
  */
 export async function handleDailyTip(chatId) {
   await sendChatAction(chatId, 'typing');
-  
+
   const tip = await getDailyTip();
-  
+
   await sendMessage(chatId, MESSAGES.COACH_DAILY_TIP(tip.message));
 }
 
@@ -168,7 +163,7 @@ export async function handleDailyTip(chatId) {
  */
 export async function handleCoach(chatId) {
   setState(chatId, STATES.COACH_CHAT, { conversationHistory: [] });
-  
+
   await sendMessageWithInlineKeyboard(
     chatId,
     MESSAGES.COACH_ACTIVATED,
@@ -181,7 +176,7 @@ export async function handleCoach(chatId) {
  */
 export async function handleCancel(chatId) {
   clearState(chatId);
-  
+
   await sendMessageWithKeyboard(
     chatId,
     MESSAGES.OPERATION_CANCELLED,
@@ -190,21 +185,20 @@ export async function handleCancel(chatId) {
 }
 
 /**
- * /reset - Reiniciar el bot y el estado
+ * /reset - Reiniciar el bot
  */
 export async function handleReset(chatId) {
   clearState(chatId);
-  
+
   await sendMessage(chatId, '_Reiniciando bot..._', { reply_markup: { remove_keyboard: true } });
-  
-  // Reutilizamos handleStart para mostrar la bienvenida y restaurar teclado
+
   setTimeout(() => handleStart(chatId), 500);
 }
 
 /**
  * Router de comandos
  */
-export async function handleCommand(chatId, command, args = '') {
+export async function handleCommand(chatId, command) {
   switch (command) {
     case '/start':
       return handleStart(chatId);

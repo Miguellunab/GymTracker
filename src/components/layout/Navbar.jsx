@@ -2,53 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, Home, ScrollText, User } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { AICoachTrigger } from "@/components/coach/AICoachTrigger";
+import { Home, ScrollText, User } from "lucide-react";
 
 const navItems = [
-    { href: "/", label: "Inicio", icon: Home },
-    { href: "/routines", label: "Rutinas", icon: Dumbbell },
-    { href: "/history", label: "Historial", icon: ScrollText },
-    { href: "/profile", label: "Perfil", icon: User },
+  { href: "/", label: "Inicio", icon: Home },
+  { href: "/history", label: "Historial", icon: ScrollText },
+  { href: "/profile", label: "Perfil", icon: User },
 ];
 
 export function Navbar() {
-    const pathname = usePathname();
+  const pathname = usePathname();
 
-    return (
-        <nav className="fixed bottom-0 left-0 right-0 z-40 mx-auto flex h-[5.5rem] sm:h-[4.5rem] max-w-3xl items-center justify-around gap-2 rounded-t-2xl border border-zinc-800/80 bg-zinc-950/95 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur-xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)]">
-            {navItems.slice(0, 2).map((item) => {
-                const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-                return (
-                    <Link
-                        key={item.href}
-                        href={item.href}
-                        className="flex h-full flex-col items-center justify-center gap-1 text-zinc-500 hover:text-emerald-400 transition-colors"
-                    >
-                        <item.icon className={cn("w-6 h-6", isActive && "text-emerald-400")} />
-                        <span className={cn("text-[11px] font-semibold", isActive && "text-white")}>
-                            {item.label}
-                        </span>
-                    </Link>
-                );
-            })}
-            <AICoachTrigger variant="nav" className="h-full" />
-            {navItems.slice(2).map((item) => {
-                const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-                return (
-                    <Link
-                        key={item.href}
-                        href={item.href}
-                        className="flex h-full flex-col items-center justify-center gap-1 text-zinc-500 hover:text-emerald-400 transition-colors"
-                    >
-                        <item.icon className={cn("w-6 h-6", isActive && "text-emerald-400")} />
-                        <span className={cn("text-[11px] font-semibold", isActive && "text-white")}>
-                            {item.label}
-                        </span>
-                    </Link>
-                );
-            })}
-        </nav>
-    );
+  // Hide navbar on workout log page (fullscreen)
+  if (pathname.startsWith("/workout")) return null;
+
+  return (
+    <nav className="bottom-nav">
+      {navItems.map((item) => {
+        const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex flex-col items-center justify-center gap-1 py-2 px-4"
+          >
+            <item.icon
+              className={`w-5 h-5 transition-colors duration-200 ${
+                isActive ? "text-[#00C853]" : "text-zinc-500"
+              }`}
+            />
+            <span
+              className={`text-[10px] font-semibold transition-colors duration-200 ${
+                isActive ? "text-white" : "text-zinc-500"
+              }`}
+            >
+              {item.label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }

@@ -1,73 +1,111 @@
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
-
-function getMode(request) {
-    if (!request.cookies) {
-        return 'main';
-    }
-    return request.cookies.get('app_mode')?.value ?? 'main';
-}
+import prisma from '@/lib/prisma';
 
 export async function GET(request) {
-    try {
-        const prisma = getPrisma(getMode(request));
-        const history = await prisma.workoutSession.findMany({
-            orderBy: { date: 'desc' },
-            include: {
-                sets: {
-                    include: { exercise: true }
-                }
-            }
-        });
-        return NextResponse.json(history);
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
+  try {
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit')) || 50;
+    const date = searchParams.get('date'); // Optional: get specific day
+
+    if (date) {
+      // Get session for specific date
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const session = await prisma.workoutSession.findFirst({
+        where: { date: { gte: startOfDay, lte: endOfDay } },
+        include: { sets: true }
+      });
+
+      return NextResponse.json(session);
     }
+
+    // Get all sessions (paginated)
+    const sessions = await prisma.workoutSession.findMany({
+      orderBy: { date: 'desc' },
+      take: limit,
+      include: { sets: true }
+    });
+
+    return NextResponse.json(sessions);
+  } catch (error) {
+    console.error('Workouts GET error:', error);
+    return NextResponse.json({ error: 'Failed to fetch workouts' }, { status: 500 });
+  }
 }
 
 export async function POST(request) {
-    try {
-        const prisma = getPrisma(getMode(request));
-        const body = await request.json();
-        const { routineName, date, notes, didCardio, cardioMinutes, cardioIntensity, workoutData, durationSeconds, totalCalories } = body;
-        
-        // workoutData is expected to be { exerciseId: [ { weight, reps, ... } ] }
-        
-        // Flatten sets
-        const setsToCreate = [];
-        
-        Object.entries(workoutData).forEach(([exerciseId, sets]) => {
-            sets.forEach(set => {
-                setsToCreate.push({
-                    exerciseId: exerciseId,
-                    weight: Number(set.weight),
-                    reps: Number(set.reps),
-                    isWarmup: set.isWarmup || false,
-                    weight2: set.weight2 ? Number(set.weight2) : null,
-                    reps2: set.reps2 ? Number(set.reps2) : null,
-                });
-            });
-        });
+  try {
+    const body = await request.json();
+    const {
+      muscleGroup,
+      date,
+      durationMinutes,
+      totalCalories,
+      didCardio,
+      cardioType,
+      cardioMinutes,
+      fatigueLevel,
+      nitRating,
+      feeling,
+      notes,
+      exercises // Array of { exerciseName, weight, sets, reps }
+    } = body;
 
-        const session = await prisma.workoutSession.create({
-            data: {
-                routineName,
-                date: date ? new Date(date) : new Date(),
-                notes,
-                didCardio,
-                cardioMinutes: didCardio ? Number(cardioMinutes) : null,
-                cardioIntensity: didCardio ? cardioIntensity : null,
-                durationSeconds,
-                totalCalories,
-                sets: {
-                    create: setsToCreate
-                }
-            }
-        });
-
-        return NextResponse.json(session);
-    } catch (error) {
-        console.error("Save Error:", error);
-        return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
+    if (!muscleGroup) {
+      return NextResponse.json({ error: 'muscleGroup is required' }, { status: 400 });
     }
+
+    const session = await prisma.workoutSession.create({
+      data: {
+        muscleGroup,
+        date: date ? new Date(date) : new Date(),
+        durationMinutes: durationMinutes ? parseInt(durationMinutes) : null,
+        totalCalories: totalCalories ? parseFloat(totalCalories) : null,
+        didCardio: didCardio || false,
+        cardioType: didCardio ? cardioType : null,
+        cardioMinutes: didCardio ? parseInt(cardioMinutes) : null,
+        fatigueLevel: fatigueLevel ? parseInt(fatigueLevel) : null,
+        nitRating: nitRating ? parseInt(nitRating) : null,
+        feeling,
+        notes,
+        sets: {
+          create: (exercises || []).map(ex => ({
+            exerciseName: ex.exerciseName,
+            weight: parseFloat(ex.weight) || 0,
+            sets: parseInt(ex.sets) || 1,
+            reps: parseInt(ex.reps) || 1
+          }))
+        }
+      },
+      include: { sets: true }
+    });
+
+    return NextResponse.json(session);
+  } catch (error) {
+    console.error('Workouts POST error:', error);
+    return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+
+    await prisma.workoutSession.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Workouts DELETE error:', error);
+    return NextResponse.json({ error: 'Failed to delete workout' }, { status: 500 });
+  }
 }

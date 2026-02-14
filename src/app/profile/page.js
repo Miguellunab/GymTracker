@@ -1,223 +1,265 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { BigButton } from "@/components/core/BigButton";
-import { User, Scale, Ruler, Flame, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  Scale,
+  Plus,
+  Trophy,
+  TrendingUp,
+  Calendar,
+  Dumbbell,
+  Flame,
+} from "lucide-react";
 
 export default function ProfilePage() {
-    // Fixed Profile
-    const USER_NAME = "Miguel Lopez";
-    const USER_HEIGHT = 170; // cm
+  const [weights, setWeights] = useState([]);
+  const [newWeight, setNewWeight] = useState("");
+  const [savingWeight, setSavingWeight] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [prs, setPrs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    const [weightLog, setWeightLog] = useState([]);
-    const [showAddWeight, setShowAddWeight] = useState(false);
-    const [newWeight, setNewWeight] = useState("");
-    const [appMode, setAppMode] = useState("main");
-    const [pin, setPin] = useState("");
-    const [modeError, setModeError] = useState("");
+  const fetchData = useCallback(async () => {
+    try {
+      const [weightRes, sessionRes] = await Promise.all([
+        fetch("/api/weight"),
+        fetch("/api/workouts?limit=200"),
+      ]);
 
-    useEffect(() => {
-        fetch('/api/weight')
-            .then(res => {
-                if(!res.ok) throw new Error("Failed to fetch weight logs");
-                return res.json();
-            })
-            .then(data => {
-                if(Array.isArray(data)) setWeightLog(data);
-            })
-            .catch(e => console.error(e));
+      if (weightRes.ok) {
+        const wData = await weightRes.json();
+        setWeights(Array.isArray(wData) ? wData : []);
+      }
 
-        fetch('/api/mode')
-            .then(res => res.json())
-            .then(data => setAppMode(data?.mode || 'main'))
-            .catch(() => setAppMode('main'));
-    }, []);
+      if (sessionRes.ok) {
+        const sessions = await sessionRes.json();
+        if (Array.isArray(sessions)) {
+          // Calculate stats
+          const totalSessions = sessions.length;
+          const totalCalories = sessions.reduce(
+            (sum, s) => sum + (s.totalCalories || 0),
+            0
+          );
+          const avgDuration =
+            sessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0) /
+              totalSessions || 0;
 
-    const currentWeight = weightLog[0]?.weight || 0;
-    const lastDate = weightLog[0]?.date ? new Date(weightLog[0].date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) : "Sin registro";
+          setStats({
+            totalSessions,
+            totalCalories: Math.round(totalCalories),
+            avgDuration: Math.round(avgDuration),
+          });
 
-    const handleAddWeight = async () => {
-        if(!newWeight) return;
-        try {
-            await fetch('/api/weight', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ weight: newWeight })
-            });
-            const res = await fetch('/api/weight');
-            setWeightLog(await res.json());
-            setShowAddWeight(false);
-            setNewWeight("");
-        } catch(e) {
-            alert("Error");
-        }
-    };
-
-    const handleDeleteWeight = async (id) => {
-        if(!confirm("¿Eliminar este registro?")) return;
-        try {
-            await fetch(`/api/weight?id=${id}`, { method: 'DELETE' });
-            // Optimistic update
-            setWeightLog(prev => prev.filter(l => l.id !== id));
-        } catch(e) {
-            alert("Error al eliminar");
-        }
-    };
-
-    const handleModeChange = async (mode) => {
-        setModeError("");
-        try {
-            const res = await fetch('/api/mode', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode, pin })
-            });
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data?.error || 'No se pudo cambiar el modo');
+          // Calculate PRs from all sets
+          const prMap = {};
+          sessions.forEach((s) => {
+            if (s.sets) {
+              s.sets.forEach((set) => {
+                const name = set.exerciseName;
+                if (!name) return;
+                const current = prMap[name] || 0;
+                if (set.weight > current) {
+                  prMap[name] = set.weight;
+                }
+              });
             }
-            const data = await res.json();
-            setAppMode(data.mode);
-        } catch (e) {
-            setModeError(e?.message || 'Error');
+          });
+
+          const prList = Object.entries(prMap)
+            .map(([exercise, weight]) => ({ exercise, weight }))
+            .sort((a, b) => b.weight - a.weight)
+            .slice(0, 15);
+
+          setPrs(prList);
         }
-    };
-    
+      }
+    } catch (e) {
+      console.error("Profile data fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const saveWeight = async () => {
+    const w = parseFloat(newWeight);
+    if (!w || w < 20 || w > 300 || savingWeight) return;
+
+    setSavingWeight(true);
+    try {
+      const res = await fetch("/api/weight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weight: w }),
+      });
+      if (res.ok) {
+        setNewWeight("");
+        fetchData();
+      }
+    } catch (e) {
+      console.error("Save weight error:", e);
+    } finally {
+      setSavingWeight(false);
+    }
+  };
+
+  // Simple weight graph (last 10 entries)
+  const graphWeights = weights.slice(0, 10).reverse();
+  const maxW = Math.max(...graphWeights.map((w) => w.weight), 1);
+  const minW = Math.min(...graphWeights.map((w) => w.weight), 0);
+  const range = maxW - minW || 1;
+
+  if (loading) {
     return (
-        <div className="min-h-screen bg-black pb-24 p-4 flex flex-col items-center">
-            
-            {/* Header Profile */}
-            <div className="mt-8 mb-6 relative">
-                 <div className="h-24 w-24 rounded-full bg-zinc-800 border-2 border-emerald-500/50 flex items-center justify-center overflow-hidden">
-                     <img src="/profile.jpg" alt="Profile" className="w-full h-full object-cover" />
-                 </div>
-                 <div className="absolute bottom-0 right-0 bg-emerald-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full border border-black">
-                     PRO
-                 </div>
-            </div>
-
-            <h1 className="text-2xl font-bold text-white mb-1">{USER_NAME}</h1>
-            <div className="flex flex-col items-center gap-1 text-sm text-zinc-500 mb-8">
-                <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1"><Ruler className="w-4 h-4" /> {USER_HEIGHT} cm</span>
-                    <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
-                    <span className="flex items-center gap-1"><Scale className="w-4 h-4" /> {currentWeight} kg</span>
-                </div>
-                {weightLog.length > 0 && <span className="text-xs text-zinc-600">Último pesaje: {lastDate}</span>}
-            </div>
-
-            <div className="w-full max-w-md space-y-8">
-                <section>
-                    <div className="flex justify-between items-end mb-4 px-2">
-                        <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                            <User className="w-4 h-4" /> Entorno
-                        </h2>
-                    </div>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-white">Modo actual</p>
-                                <p className="text-xs text-zinc-500">{appMode === 'main' ? 'Producción' : appMode === 'test' ? 'Testing' : 'Dev'}</p>
-                            </div>
-                            <span className="text-xs rounded-full border border-zinc-700 px-2 py-1 text-zinc-400">{appMode}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            <button
-                                onClick={() => handleModeChange('main')}
-                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'main' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
-                            >
-                                Main
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('test')}
-                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'test' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
-                            >
-                                Test
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('dev')}
-                                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${appMode === 'dev' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-600' : 'border-zinc-800 text-zinc-400 hover:text-white'}`}
-                            >
-                                Dev
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="password"
-                                value={pin}
-                                onChange={(e) => setPin(e.target.value)}
-                                placeholder="PIN para dev"
-                                className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
-                            />
-                            <button
-                                onClick={() => handleModeChange('dev')}
-                                className="text-xs font-semibold px-3 py-2 rounded-lg border border-emerald-600 text-emerald-300"
-                            >
-                                Entrar
-                            </button>
-                        </div>
-                        {modeError && <p className="text-xs text-rose-400">{modeError}</p>}
-                    </div>
-                </section>
-                
-                {/* Weight Section */}
-                <section>
-                    <div className="flex justify-between items-end mb-4 px-2">
-                        <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                            <Scale className="w-4 h-4" /> Historial de Peso
-                        </h2>
-                        <button 
-                            onClick={() => setShowAddWeight(!showAddWeight)}
-                            className="text-emerald-500 text-xs font-bold flex items-center gap-1 hover:underline"
-                        >
-                            <Plus className="w-3 h-3" /> Registrar
-                        </button>
-                    </div>
-
-                    {showAddWeight && (
-                        <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 mb-4 animate-in slide-in-from-top-2">
-                            <div className="flex gap-2">
-                                <input 
-                                    type="number" 
-                                    inputMode="decimal"
-                                    pattern="[0-9]*[.,]?[0-9]*"
-                                    value={newWeight}
-                                    onChange={e => setNewWeight(e.target.value)}
-                                    placeholder="80.0"
-                                    className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-2 text-white font-bold outline-none focus:border-emerald-500"
-                                    autoFocus
-                                />
-                                <button 
-                                    onClick={handleAddWeight}
-                                    className="bg-emerald-500 text-black font-bold px-4 rounded-lg text-sm"
-                                >
-                                    Guardar
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
-                        {weightLog.map((log) => (
-                            <div key={log.id} className="p-4 flex items-center justify-between group">
-                                <span className="text-zinc-500 text-sm">{new Date(log.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-white font-bold font-mono">{log.weight} kg</span>
-                                    <button 
-                                        onClick={() => handleDeleteWeight(log.id)}
-                                        className="text-zinc-600 hover:text-red-500 transition-colors p-1"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        {weightLog.length === 0 && (
-                            <div className="p-4 text-center text-zinc-600 text-sm">No hay registros aún.</div>
-                        )}
-                    </div>
-                </section>
-            </div>
-        </div>
+      <div className="pt-12 flex items-center justify-center min-h-[50vh]">
+        <div className="w-6 h-6 border-2 border-[#00C853] border-t-transparent rounded-full animate-spin" />
+      </div>
     );
+  }
+
+  return (
+    <div className="pt-12 pb-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold font-display">Perfil</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">Tu progreso y estadisticas</p>
+      </div>
+
+      {/* Weight Tracking */}
+      <div className="glass-card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-[#2196F3]" />
+            <h2 className="text-sm font-semibold">Peso Corporal</h2>
+          </div>
+          {weights.length > 0 && (
+            <span className="text-lg font-bold font-display">
+              {weights[0].weight}
+              <span className="text-xs font-normal text-zinc-500 ml-1">kg</span>
+            </span>
+          )}
+        </div>
+
+        {/* Weight Graph */}
+        {graphWeights.length > 1 && (
+          <div className="h-24 flex items-end gap-1">
+            {graphWeights.map((w, i) => {
+              const height = ((w.weight - minW) / range) * 80 + 20;
+              return (
+                <motion.div
+                  key={w.id}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${height}%` }}
+                  transition={{ delay: i * 0.05 }}
+                  className="flex-1 rounded-t-md bg-[#2196F3]/20 relative group"
+                >
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 hidden group-hover:block text-[9px] text-zinc-400 whitespace-nowrap">
+                    {w.weight}kg
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Add Weight */}
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={newWeight}
+            onChange={(e) => setNewWeight(e.target.value)}
+            placeholder="Ej: 75.5"
+            className="input-dark flex-1"
+            step="0.1"
+          />
+          <button
+            onClick={saveWeight}
+            disabled={savingWeight || !newWeight}
+            className="px-4 rounded-xl bg-[#2196F3]/15 text-[#2196F3] text-sm font-medium disabled:opacity-40 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* General Stats */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="glass-card p-3 text-center">
+            <Dumbbell className="w-4 h-4 text-[#00C853] mx-auto mb-1.5" />
+            <p className="text-xl font-bold font-display">{stats.totalSessions}</p>
+            <p className="text-[10px] text-zinc-500">sesiones</p>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <Flame className="w-4 h-4 text-orange-400 mx-auto mb-1.5" />
+            <p className="text-xl font-bold font-display">
+              {stats.totalCalories > 1000
+                ? `${(stats.totalCalories / 1000).toFixed(1)}k`
+                : stats.totalCalories}
+            </p>
+            <p className="text-[10px] text-zinc-500">kcal total</p>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <Calendar className="w-4 h-4 text-[#2196F3] mx-auto mb-1.5" />
+            <p className="text-xl font-bold font-display">{stats.avgDuration}</p>
+            <p className="text-[10px] text-zinc-500">min prom</p>
+          </div>
+        </div>
+      )}
+
+      {/* Personal Records */}
+      {prs.length > 0 && (
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-yellow-400" />
+            <h2 className="text-sm font-semibold">Records Personales</h2>
+          </div>
+          <div className="space-y-2">
+            {prs.map((pr, i) => (
+              <div
+                key={pr.exercise}
+                className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-600 w-5">{i + 1}.</span>
+                  <span className="text-sm">{pr.exercise}</span>
+                </div>
+                <span className="text-sm font-bold font-display text-[#00C853]">
+                  {pr.weight} kg
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Weight History */}
+      {weights.length > 0 && (
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-zinc-500" />
+            <h2 className="text-sm font-semibold">Historial de Peso</h2>
+          </div>
+          <div className="space-y-1.5">
+            {weights.slice(0, 10).map((w) => (
+              <div
+                key={w.id}
+                className="flex items-center justify-between py-1 text-sm"
+              >
+                <span className="text-zinc-500">
+                  {format(new Date(w.date), "d MMM yyyy", { locale: es })}
+                </span>
+                <span className="font-display font-medium">{w.weight} kg</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
