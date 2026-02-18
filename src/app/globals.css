@@ -76,7 +76,7 @@ main {
 
 /* ─── Calendar day pill ──────────────────────────────── */
 .day-pill {
-  @apply flex flex-col items-center justify-center rounded-2xl px-3 py-2 min-w-[52px] cursor-pointer transition-all duration-200;
+  @apply flex flex-1 flex-col items-center justify-center rounded-2xl py-2 min-w-0 cursor-pointer transition-all duration-200;
 }
 .day-pill.active {
   background: var(--accent-green);

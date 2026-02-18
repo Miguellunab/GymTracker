@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, SendHorizonal, X } from "lucide-react";
+import { Bot, SendHorizonal, X, Zap, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const WELCOME_MESSAGE = {
   role: "assistant",
   content: "Hola, soy tu AI Coach. Preguntame sobre tu progreso, pide corregir un registro, o planifica tu semana."
+};
+
+const MODELS = {
+  fast: { label: "K2", desc: "Rapido", icon: Zap, color: "#00C853" },
+  analysis: { label: "Llama 70B", desc: "Potente", icon: Sparkles, color: "#2196F3" },
 };
 
 export function AICoachShell() {
@@ -13,6 +19,7 @@ export function AICoachShell() {
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [model, setModel] = useState("fast");
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -45,13 +52,15 @@ export function AICoachShell() {
       const res = await fetch("/api/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages })
+        body: JSON.stringify({ messages: nextMessages, model })
       });
 
       if (!res.ok || !res.body) {
         const errorText = await res.text();
         throw new Error(errorText || "Error del servidor");
       }
+
+      const coachAction = res.headers.get("X-Coach-Action");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -67,6 +76,11 @@ export function AICoachShell() {
           updated[updated.length - 1] = { role: "assistant", content: assistantText };
           return updated;
         });
+      }
+
+      // Notify home page to refresh if coach modified DB
+      if (coachAction && coachAction !== "CHAT") {
+        window.dispatchEvent(new Event("workout-data-changed"));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error inesperado";
@@ -87,6 +101,9 @@ export function AICoachShell() {
     }
   };
 
+  const currentModel = MODELS[model];
+  const ModelIcon = currentModel.icon;
+
   if (!open) return null;
 
   return (
@@ -100,7 +117,17 @@ export function AICoachShell() {
             </div>
             <div>
               <p className="text-sm font-semibold">AI Coach</p>
-              <p className="text-xs text-zinc-500">Kimi K2.5</p>
+              {/* Model toggle */}
+              <button
+                onClick={() => setModel(model === "fast" ? "analysis" : "fast")}
+                className="flex items-center gap-1 text-xs transition-colors hover:opacity-80"
+                style={{ color: currentModel.color }}
+                disabled={loading}
+              >
+                <ModelIcon className="h-3 w-3" />
+                <span>{currentModel.label}</span>
+                <span className="text-zinc-600 ml-0.5">({currentModel.desc})</span>
+              </button>
             </div>
           </div>
           <button

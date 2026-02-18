@@ -1,32 +1,35 @@
 /**
- * Cliente centralizado para NVIDIA NIM API (Kimi K2.5)
- * Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
- * Modelo: moonshotai/kimi-k2-5
+ * Cliente dual de IA para GymTracker (todo via GROQ)
+ * - FAST: moonshotai/kimi-k2-instruct-0905 → coach, tips, chat rapido
+ * - ANALYSIS: llama-3.3-70b-versatile → analisis de workout (mas potente)
  */
 
-const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const MODEL = 'moonshotai/kimi-k2-5';
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL_FAST = 'moonshotai/kimi-k2-instruct-0905';
+const MODEL_ANALYSIS = 'llama-3.3-70b-versatile';
 
 /**
- * Llamada base al modelo Kimi K2.5 via NVIDIA NIM
- * @param {Array} messages - Array de mensajes [{role, content}]
- * @param {Object} options - Opciones adicionales
- * @returns {Promise<string>} - Contenido de la respuesta
+ * Llamada a la IA via GROQ
+ * @param {Array} messages - [{role, content}]
+ * @param {Object} options
+ * @param {string} options.model - 'fast' (kimi-k2) o 'analysis' (llama-3.3-70b)
  */
 export async function chat(messages, options = {}) {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) {
-    throw new Error('NVIDIA_API_KEY no configurada');
-  }
-
   const {
     temperature = 0.6,
     maxTokens = 4096,
-    jsonMode = false,
+    model = 'fast',
   } = options;
 
+  const modelId = model === 'analysis' ? MODEL_ANALYSIS : MODEL_FAST;
+  const apiKey = process.env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY no configurada');
+  }
+
   const body = {
-    model: MODEL,
+    model: modelId,
     messages,
     temperature,
     max_tokens: maxTokens,
@@ -34,12 +37,7 @@ export async function chat(messages, options = {}) {
     stream: false,
   };
 
-  // NVIDIA NIM soporta response_format para JSON mode
-  if (jsonMode) {
-    body.response_format = { type: 'json_object' };
-  }
-
-  const response = await fetch(NVIDIA_API_URL, {
+  const response = await fetch(GROQ_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -50,45 +48,44 @@ export async function chat(messages, options = {}) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('NVIDIA NIM Error:', response.status, errorText);
-    throw new Error(`NVIDIA NIM API error: ${response.status} - ${errorText}`);
+    console.error(`AI Error (${modelId}):`, response.status, errorText);
+    throw new Error(`AI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  const content = data.choices?.[0]?.message?.content || '';
+
+  if (!content.trim()) {
+    throw new Error('Modelo devolvio respuesta vacia');
+  }
+
+  return content;
 }
 
 /**
  * Chat con respuesta JSON parseada
- * @param {Array} messages - Array de mensajes
- * @param {Object} options - Opciones (sin jsonMode, se activa auto)
- * @returns {Promise<Object>} - Objeto JSON parseado
  */
 export async function chatJSON(messages, options = {}) {
-  const content = await chat(messages, { ...options, jsonMode: true });
-  
+  const content = await chat(messages, options);
+
   try {
-    // Limpiar posibles markdown wrappers
     const cleaned = content
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    console.error('Error parseando JSON de NVIDIA NIM:', content);
+    console.error('Error parseando JSON:', content.slice(0, 300));
     throw new Error('Respuesta no es JSON valido');
   }
 }
 
 /**
- * Genera un system prompt con contexto de reportes semanales
- * @param {Object} prisma - Instancia de Prisma
- * @returns {Promise<string>} - Contexto formateado
+ * Genera contexto de reportes semanales para system prompts
  */
 export async function buildReportContext(prisma) {
   const now = new Date();
-  
-  // Obtener ISO week number
+
   const getWeekNumber = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
@@ -102,7 +99,6 @@ export async function buildReportContext(prisma) {
   const prevWeek = currentWeek === 1 ? 52 : currentWeek - 1;
   const prevYear = currentWeek === 1 ? currentYear - 1 : currentYear;
 
-  // Buscar reportes semanales: actual y anterior
   const [currentReport, previousReport] = await Promise.all([
     prisma.weeklyReport.findUnique({
       where: { weekNumber_year: { weekNumber: currentWeek, year: currentYear } }
@@ -112,19 +108,15 @@ export async function buildReportContext(prisma) {
     }).catch(() => null),
   ]);
 
-  // Obtener sesiones de los ultimos 7 dias para datos frescos
   const start7 = new Date(now);
   start7.setDate(start7.getDate() - 7);
 
   const recentSessions = await prisma.workoutSession.findMany({
     where: { date: { gte: start7 } },
     orderBy: { date: 'desc' },
-    include: {
-      sets: true,
-    }
+    include: { sets: true }
   });
 
-  // Obtener ultimo peso corporal
   const lastWeight = await prisma.weightLog.findFirst({
     orderBy: { date: 'desc' }
   });
@@ -133,7 +125,6 @@ export async function buildReportContext(prisma) {
   context += `Peso corporal actual: ${lastWeight ? lastWeight.weight + ' kg' : 'Sin registrar'}.\n`;
   context += `Sesiones ultimos 7 dias: ${recentSessions.length}.\n\n`;
 
-  // Datos frescos de sesiones recientes
   if (recentSessions.length > 0) {
     context += 'Sesiones recientes:\n';
     for (const session of recentSessions) {
@@ -143,10 +134,9 @@ export async function buildReportContext(prisma) {
       const nit = session.nitRating ? `NIT: ${session.nitRating}/10` : '';
       const cal = session.totalCalories ? `${session.totalCalories} kcal` : '';
       const cardio = session.didCardio ? `Cardio: ${session.cardioMinutes}min` : '';
-      
+
       context += `- ${dateStr}: ${muscleGroup} | ${cal} ${fatigue} ${nit} ${cardio}\n`;
-      
-      // Incluir pesos por ejercicio
+
       if (session.sets && session.sets.length > 0) {
         const exerciseSets = {};
         for (const set of session.sets) {
@@ -187,5 +177,3 @@ export async function buildReportContext(prisma) {
 
   return context;
 }
-
-export default { chat, chatJSON, buildReportContext };

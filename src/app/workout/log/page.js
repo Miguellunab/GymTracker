@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2, Moon } from "lucide-react";
 
@@ -15,7 +15,21 @@ const WORKOUT_STEPS = ["muscle", "exercises", "cardio", "duration", "feeling", "
 const REST_STEPS = ["muscle", "rest-confirm"];
 
 export default function WorkoutLogPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-[#00C853] animate-spin" />
+      </div>
+    }>
+      <WorkoutLogContent />
+    </Suspense>
+  );
+}
+
+function WorkoutLogContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetDate = searchParams.get("date"); // yyyy-MM-dd from home page
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -183,6 +197,7 @@ export default function WorkoutLogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           muscleGroup,
+          date: targetDate || undefined,
           durationMinutes: parseInt(durationMinutes) || null,
           totalCalories: aiResult.totalCalories,
           didCardio,
@@ -227,6 +242,7 @@ export default function WorkoutLogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           muscleGroup: "Descanso",
+          date: targetDate || undefined,
           durationMinutes: 0,
           totalCalories: 0,
           didCardio: false,

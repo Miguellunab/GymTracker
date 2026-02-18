@@ -8,7 +8,6 @@ export async function POST(request) {
     const body = await request.json();
     const { muscleGroup, exercises, cardio, feeling, durationMinutes } = body;
 
-    // Get user weight for calorie calculations
     const weightLog = await prisma.weightLog.findFirst({
       orderBy: { date: 'desc' }
     });
@@ -31,33 +30,47 @@ Instrucciones:
 2. Genera un NIT rating (Nivel de Intensidad Total) de 1-10 basado en volumen, peso y feedback.
 3. Genera un nivel de fatiga de 1-10 basado en el feeling del usuario y la carga de trabajo.
 4. Escribe un analisis breve (2-3 frases) sobre el rendimiento.
-5. Normaliza los nombres de ejercicios (ej: "press banca" -> "Press de banca con barra", "sentadilla" -> "Sentadilla con barra").
+5. Normaliza los nombres de ejercicios usando nombres estandar de gimnasio en espanol.
 
-Responde SOLO con JSON:
-{
-  "totalCalories": number,
-  "nitRating": number (1-10),
-  "fatigueLevel": number (1-10),
-  "analysis": "string con analisis breve",
-  "normalizedExercises": [{"original": "nombre original", "normalized": "nombre normalizado"}]
-}`;
+REGLAS DE NORMALIZACION DE EJERCICIOS:
+- Interpreta el contexto: si el usuario escribe abreviaciones o nombres informales, deduce el ejercicio correcto.
+- IMPORTANTE: Distingue entre equipamiento. Presta atencion a pistas como "hacka/hack" (maquina), "smith" (maquina guiada), "mancuerna/dumbbell" (mancuernas), "barra" (barra olimpica).
+- "sentadilla hacka" o "hack squat" = "Hack squat en maquina" (NO es con barra)
+- "press banca" = "Press de banca con barra"
+- "press inclinado" = "Press inclinado con barra"
+- "press mancuerna" = "Press con mancuernas"
+- "curl" = "Curl de biceps con barra"
+- "curl mancuerna" = "Curl de biceps con mancuernas"
+- "extension tricep" = "Extension de triceps en polea"
+- "sentadilla" (sin especificar) = "Sentadilla con barra"
+- "peso muerto" = "Peso muerto convencional"
+- "remo" = "Remo con barra"
+- "jalon/jalones" = "Jalon al pecho en polea"
+- "elevaciones laterales" = "Elevaciones laterales con mancuernas"
+- "prensa" = "Prensa de pierna en maquina"
+- Si no estas seguro del equipamiento, usa el mas comun para ese ejercicio en un gimnasio.
+
+Responde SOLO con JSON valido, sin markdown ni explicacion adicional:
+{"totalCalories": number, "nitRating": number, "fatigueLevel": number, "analysis": "string con analisis breve", "normalizedExercises": [{"original": "nombre original", "normalized": "nombre normalizado"}]}`;
 
     const result = await chatJSON(
-      [{ role: 'system', content: systemPrompt }],
-      { temperature: 0.3, maxTokens: 512 }
+      [
+        { role: 'system', content: 'Eres un fisiologo deportivo. Responde siempre en JSON valido sin markdown.' },
+        { role: 'user', content: systemPrompt }
+      ],
+      { temperature: 0.3, maxTokens: 512, model: 'analysis' }
     );
 
     return Response.json(result);
 
   } catch (error) {
-    console.error('Analyze workout error:', error);
-    // Fallback with reasonable defaults
+    console.error('Analyze workout error:', error?.message || error);
     return Response.json({
       totalCalories: 300,
       nitRating: 5,
       fatigueLevel: 5,
-      analysis: 'No se pudo analizar la sesion. Estimaciones por defecto.',
+      analysis: 'No se pudo conectar con AI. Estimaciones por defecto.',
       normalizedExercises: []
-    }, { status: 500 });
+    });
   }
 }
