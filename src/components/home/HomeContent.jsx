@@ -328,7 +328,7 @@ export default function HomeContent() {
               }}
               className="fixed z-50 flex items-center gap-3 rounded-full pl-4 pr-5 py-3 font-semibold shadow-xl bg-[#00C853] text-black"
               style={{
-                bottom: `calc(${daySession ? "12.5rem" : "10rem"} + env(safe-area-inset-bottom))`,
+                bottom: `calc(${daySession ? "14rem" : "10rem"} + env(safe-area-inset-bottom))`,
                 right: "1rem"
               }}
             >
@@ -347,7 +347,7 @@ export default function HomeContent() {
                 disabled={deleting}
                 className="fixed z-50 flex items-center gap-3 rounded-full pl-4 pr-5 py-3 font-semibold shadow-xl bg-red-500/90 text-white disabled:opacity-50"
                 style={{
-                  bottom: `calc(8.5rem + env(safe-area-inset-bottom))`,
+                  bottom: `calc(10rem + env(safe-area-inset-bottom))`,
                   right: "1rem"
                 }}
               >

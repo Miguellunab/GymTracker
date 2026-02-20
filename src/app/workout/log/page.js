@@ -7,6 +7,8 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2, Moon } from "lucid
 
 const MUSCLE_GROUPS = [
   { value: "Pecho/Espalda", label: "Pecho / Espalda" },
+  { value: "Pecho/Triceps", label: "Pecho / Tríceps" },
+  { value: "Espalda/Biceps", label: "Espalda / Bíceps" },
   { value: "Pierna", label: "Pierna" },
   { value: "Brazos", label: "Brazos" },
 ];
