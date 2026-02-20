@@ -30,6 +30,11 @@ main {
   padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 }
 
+/* ─── Safe area top padding para PWA standalone ──────── */
+.page-top {
+  padding-top: calc(env(safe-area-inset-top) + 12px);
+}
+
 /* ─── Glass card ─────────────────────────────────────── */
 .glass-card {
   background: var(--bg-card);

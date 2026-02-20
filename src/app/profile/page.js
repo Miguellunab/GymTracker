@@ -117,14 +117,14 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="pt-12 flex items-center justify-center min-h-[50vh]">
+      <div className="page-top flex items-center justify-center min-h-[50vh]">
         <div className="w-6 h-6 border-2 border-[#00C853] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="pt-12 pb-8 space-y-6">
+    <div className="page-top pb-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold font-display">Perfil</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Tu progreso y estadisticas</p>

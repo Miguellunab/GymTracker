@@ -130,7 +130,7 @@ export default function HomeContent() {
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
 
   return (
-    <div className="pt-12 pb-8 space-y-6" suppressHydrationWarning>
+    <div className="page-top pb-8 space-y-6" suppressHydrationWarning>
       {/* Greeting + Date */}
       <div>
         <h1 className="text-2xl font-bold font-display capitalize" suppressHydrationWarning>

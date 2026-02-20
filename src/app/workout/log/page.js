@@ -270,7 +270,7 @@ function WorkoutLogContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col pt-6 pb-8">
+    <div className="min-h-screen flex flex-col pb-8" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <button
