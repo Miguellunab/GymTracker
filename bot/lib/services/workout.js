@@ -4,12 +4,15 @@
  */
 
 import prisma from '../../../src/lib/prisma.js';
+import { ensureExerciseCatalog, resolveExerciseEntries } from '../../../src/lib/exercise-catalog.js';
 
 /**
  * Crea una nueva sesión de entrenamiento
  */
 export async function createWorkout(data) {
   try {
+    await ensureExerciseCatalog(prisma);
+
     const {
       muscleGroup,
       date,
@@ -25,12 +28,19 @@ export async function createWorkout(data) {
       exercises, // [{ name, weight, sets, reps }]
     } = data;
 
-    const sets = (exercises || []).map(ex => ({
-      exerciseName: ex.name,
-      weight: ex.weight || 0,
-      sets: ex.sets || 3,
-      reps: ex.reps || 10,
-    }));
+    const resolutions = await resolveExerciseEntries(prisma, exercises || [], { allowCreateCustom: true });
+
+    const sets = (exercises || []).map((ex, index) => {
+      const resolution = resolutions[index];
+      return {
+        exerciseId: resolution?.status === 'resolved' ? resolution.exerciseId : null,
+        exerciseName: resolution?.status === 'resolved' ? resolution.canonicalName : ex.name,
+        originalInput: ex.name,
+        weight: ex.weight || 0,
+        sets: ex.sets || 3,
+        reps: ex.reps || 10,
+      };
+    });
 
     const workout = await prisma.workoutSession.create({
       data: {
@@ -67,7 +77,7 @@ export async function getRecentWorkouts(limit = 7) {
     const workouts = await prisma.workoutSession.findMany({
       take: limit,
       orderBy: { date: 'desc' },
-      include: { sets: true }
+      include: { sets: { include: { exercise: true } } }
     });
 
     return workouts.map(w => ({
@@ -108,7 +118,7 @@ export async function getTodayWorkout() {
 
     return await prisma.workoutSession.findFirst({
       where: { date: { gte: today, lt: tomorrow } },
-      include: { sets: true }
+      include: { sets: { include: { exercise: true } } }
     });
   } catch (error) {
     console.error('Error fetching today workout:', error);

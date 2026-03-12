@@ -7,9 +7,11 @@ import { NextResponse } from 'next/server';
 import { sendMessage, deleteMessage } from '../../../../bot/lib/telegram.js';
 import prisma from '@/lib/prisma';
 import { chat } from '@/lib/nvidia-nim';
+import { ensureExerciseCatalog, getReminderWeightContext } from '@/lib/exercise-catalog';
 
 export async function GET(request) {
   try {
+    await ensureExerciseCatalog(prisma);
     // Verify authorization (Vercel Cron sends CRON_SECRET)
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
@@ -90,6 +92,8 @@ export async function GET(request) {
       toneInstruction = 'El usuario ya entrenó hoy. Felicítalo y sugiere recuperación.';
     }
 
+    const reminderWeights = await getReminderWeightContext(prisma, 3);
+
     // --- 3. Generate daily tip via AI ---
     const systemPrompt = `Eres el coach de fitness personal del usuario. Hablas español de manera directa y motivacional.
 Rutina: Arnold Split (Pecho/Espalda, Pierna, Brazos) - 3 días por semana, horario flexible.
@@ -98,6 +102,8 @@ Entrenamientos recientes:
 ${workoutSummary}
 
 ${weeklyReport ? `Reporte semanal anterior: ${weeklyReport.content}` : 'Sin reporte semanal previo.'}
+
+${reminderWeights.length > 0 ? `Pesos recientes utiles para recordar hoy:\n- ${reminderWeights.join('\n- ')}` : 'Sin memoria de pesos reciente.'}
 
 ${toneInstruction}
 

@@ -5,19 +5,25 @@
 
 import { chat, chatJSON, buildReportContext } from '../../../src/lib/nvidia-nim.js';
 import prisma from '../../../src/lib/prisma.js';
+import { executeCoachAction } from '../../../src/lib/coach-actions.js';
+import { ensureExerciseCatalog, getRelevantExerciseContext } from '../../../src/lib/exercise-catalog.js';
 
 /**
  * Obtiene el consejo diario del coach
  */
 export async function getDailyTip() {
   try {
+    await ensureExerciseCatalog(prisma);
     const context = await buildReportContext(prisma);
+    const reminderContext = await getRelevantExerciseContext(prisma, 'press banca jalon prensa hack curl remo');
 
     const systemPrompt = `Eres un coach de gimnasio experto. Hablas español de manera directa y motivacional.
 Rutina del usuario: Arnold Split (Pecho/Espalda, Pierna, Brazos) - 3 días por semana, horario flexible.
 Siempre hace pierna entre los días de torso.
 
 ${context}
+
+${reminderContext ? `Memoria de pesos recientes:\n${reminderContext}` : ''}
 
 Da UN consejo breve y directo para hoy (2-3 oraciones máximo). Sugiere qué grupo muscular trabajar o si debe descansar.`;
 
@@ -53,7 +59,9 @@ Da UN consejo breve y directo para hoy (2-3 oraciones máximo). Sugiere qué gru
  */
 export async function chatWithCoach(userMessage, conversationHistory = []) {
   try {
+    await ensureExerciseCatalog(prisma);
     const context = await buildReportContext(prisma);
+    const exerciseContext = await getRelevantExerciseContext(prisma, userMessage);
 
     const systemPrompt = `Eres AI Coach, un entrenador personal inteligente para GymTracker.
 Rutina del usuario: Arnold Split (Pecho/Espalda, Pierna, Brazos) - 3 días por semana, horario flexible.
@@ -61,12 +69,16 @@ Rutina del usuario: Arnold Split (Pecho/Espalda, Pierna, Brazos) - 3 días por s
 CAPACIDADES:
 - Puedes MODIFICAR entrenamientos pasados si el usuario lo pide
 - Puedes ELIMINAR entrenamientos si el usuario lo solicita
+- Puedes MOVER una sesion a otra fecha si el usuario se equivoco de dia
+- Puedes responder cuanto levanta el usuario en un ejercicio, ultima marca y mejor marca
 - Puedes responder preguntas sobre su progreso
 
 Responde SIEMPRE en formato JSON válido:
 {
-  "action": "UPDATE_SESSION" | "DELETE_SESSION" | "CHAT",
+  "action": "UPDATE_SESSION" | "DELETE_SESSION" | "MOVE_SESSION_DATE" | "ANSWER_EXERCISE_QUERY" | "CHAT",
   "targetDate": "YYYY-MM-DD",
+  "newDate": "YYYY-MM-DD",
+  "exerciseQuery": "string",
   "updates": {
     "muscleGroup": "string",
     "didCardio": boolean,
@@ -82,13 +94,17 @@ Responde SIEMPRE en formato JSON válido:
 REGLAS:
 1. Si el usuario dice "cambia X a Y", "el entreno de ayer fue...", "modifica...", usa UPDATE_SESSION
 2. Si dice "elimina", "borra", "quita el entreno de...", usa DELETE_SESSION
-3. Para preguntas normales, usa CHAT
+3. Si pide mover la sesion de un dia a otro, usa MOVE_SESSION_DATE
+4. Si pregunta cuanto levanta en un ejercicio o su ultima marca, usa ANSWER_EXERCISE_QUERY
+5. Para preguntas normales, usa CHAT
 4. targetDate debe ser formato YYYY-MM-DD
 5. "ayer" = fecha de ayer, "hoy" = fecha de hoy, "lunes" = último lunes, etc.
 6. Siempre confirma la acción en el mensaje
 
 CONTEXTO DEL USUARIO:
-${context}`;
+${context}
+
+${exerciseContext}`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -105,56 +121,8 @@ ${context}`;
       return rawResponse || 'No pude procesar tu mensaje.';
     }
 
-    let finalMessage = result.message || 'Procesado.';
-
-    // Execute action if needed
-    if ((result.action === 'UPDATE_SESSION' || result.action === 'DELETE_SESSION') && result.targetDate) {
-      const startOfDay = new Date(result.targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(result.targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const existingSession = await prisma.workoutSession.findFirst({
-        where: {
-          date: { gte: startOfDay, lte: endOfDay }
-        }
-      });
-
-      if (existingSession) {
-        if (result.action === 'DELETE_SESSION') {
-          await prisma.workoutSet.deleteMany({
-            where: { workoutSessionId: existingSession.id }
-          });
-          await prisma.workoutSession.delete({
-            where: { id: existingSession.id }
-          });
-          finalMessage = result.message || `Entrenamiento del ${result.targetDate} eliminado.`;
-        } else {
-          const updateData = {};
-          if (result.updates?.muscleGroup !== undefined) updateData.muscleGroup = result.updates.muscleGroup;
-          if (result.updates?.didCardio !== undefined) updateData.didCardio = result.updates.didCardio;
-          if (result.updates?.cardioMinutes !== undefined) updateData.cardioMinutes = result.updates.cardioMinutes;
-          if (result.updates?.totalCalories !== undefined) updateData.totalCalories = result.updates.totalCalories;
-          if (result.updates?.fatigueLevel !== undefined) updateData.fatigueLevel = result.updates.fatigueLevel;
-          if (result.updates?.nitRating !== undefined) updateData.nitRating = result.updates.nitRating;
-
-          const note = `[AI: ${result.updates?.correctionReason || 'Modificado via Telegram'}]`;
-          updateData.notes = existingSession.notes
-            ? `${existingSession.notes}\n${note}`
-            : note;
-
-          await prisma.workoutSession.update({
-            where: { id: existingSession.id },
-            data: updateData
-          });
-          finalMessage = result.message || `Entrenamiento del ${result.targetDate} actualizado.`;
-        }
-      } else {
-        finalMessage = `No encontré un entrenamiento registrado para el ${result.targetDate}.`;
-      }
-    }
-
-    return finalMessage;
+    const execution = await executeCoachAction(prisma, result);
+    return execution.finalMessage;
   } catch (error) {
     console.error('Error chatting with coach:', error);
     return 'Error al conectar con el coach. Intenta de nuevo.';
@@ -166,6 +134,7 @@ ${context}`;
  */
 export async function parseWorkoutText(text) {
   try {
+    await ensureExerciseCatalog(prisma);
     const systemPrompt = `Eres un parser de entrenamientos de gimnasio. El usuario describe su entrenamiento en texto libre.
 Tu tarea es extraer la información estructurada.
 
@@ -184,7 +153,7 @@ RESPONDE SOLO en este formato JSON:
 {
   "muscleGroup": "Pecho/Espalda" | "Pierna" | "Brazos",
   "exercises": [
-    {"name": "Press de banca con barra", "weight": 80, "sets": 3, "reps": 10}
+    {"name": "Press de banca", "weight": 80, "sets": 3, "reps": 10}
   ],
   "didCardio": false,
   "cardioType": null,
@@ -198,7 +167,8 @@ RESPONDE SOLO en este formato JSON:
 }
 
 REGLAS:
-- Normaliza nombres de ejercicios (ej: "press banca" → "Press de banca con barra")
+- Para ejercicios obvios, usa la variante mas comun del gimnasio (ej: "prensa" => "Prensa de pierna en maquina", "hacka" => "Hack squat en maquina", "jalon" => "Jalon al pecho en polea")
+- Si un ejercicio es ambiguo entre variantes, NO inventes el equipamiento. Devuelve el nombre base ambiguo (ej: "Press de banca", "Press inclinado", "Curl de biceps", "Remo")
 - Si no especifica series, asume 3
 - Si no especifica reps, asume 10
 - Infiere grupo muscular por los ejercicios si no lo dice explícitamente`;

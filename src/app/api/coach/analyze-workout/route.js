@@ -1,10 +1,12 @@
 import { chatJSON } from '@/lib/nvidia-nim';
 import prisma from '@/lib/prisma';
+import { ensureExerciseCatalog, resolveExerciseEntries } from '@/lib/exercise-catalog';
 
 export const runtime = 'nodejs';
 
 export async function POST(request) {
   try {
+    await ensureExerciseCatalog(prisma);
     const body = await request.json();
     const { muscleGroup, exercises, cardio, feeling, durationMinutes } = body;
 
@@ -12,6 +14,29 @@ export async function POST(request) {
       orderBy: { date: 'desc' }
     });
     const userWeight = weightLog?.weight || 75;
+
+    const exerciseResolutions = await resolveExerciseEntries(prisma, exercises || [], { allowCreateCustom: false });
+    const needsClarification = exerciseResolutions
+      .map((resolution, index) => ({ resolution, exercise: exercises?.[index] }))
+      .filter(({ resolution }) => resolution?.status === 'ambiguous');
+
+    if (needsClarification.length > 0) {
+      return Response.json({
+        needsClarification: true,
+        ambiguousExercises: needsClarification.map(({ resolution, exercise }) => ({
+          original: exercise?.name,
+          question: resolution.question,
+          options: [...resolution.options, { canonicalName: 'Otro', slug: 'other', equipment: 'custom' }],
+        })),
+      });
+    }
+
+    const normalizedExercises = (exercises || []).map((exercise, index) => ({
+      ...exercise,
+      name: exerciseResolutions[index]?.status === 'resolved'
+        ? exerciseResolutions[index].canonicalName
+        : exercise.name,
+    }));
 
     const systemPrompt = `Eres un experto fisiologo deportivo. Analiza esta sesion de entrenamiento y genera metricas precisas.
 
@@ -21,7 +46,7 @@ Datos del atleta:
 Entrenamiento realizado:
 - Grupo muscular: ${muscleGroup}
 - Duracion total: ${durationMinutes || 'no especificada'} minutos
-- Ejercicios: ${JSON.stringify(exercises)}
+- Ejercicios: ${JSON.stringify(normalizedExercises)}
 - Cardio: ${JSON.stringify(cardio)}
 - Como se sintio: "${feeling || 'sin comentario'}"
 
@@ -30,25 +55,7 @@ Instrucciones:
 2. Genera un NIT rating (Nivel de Intensidad Total) de 1-10 basado en volumen, peso y feedback.
 3. Genera un nivel de fatiga de 1-10 basado en el feeling del usuario y la carga de trabajo.
 4. Escribe un analisis breve (2-3 frases) sobre el rendimiento.
-5. Normaliza los nombres de ejercicios usando nombres estandar de gimnasio en espanol.
-
-REGLAS DE NORMALIZACION DE EJERCICIOS:
-- Interpreta el contexto: si el usuario escribe abreviaciones o nombres informales, deduce el ejercicio correcto.
-- IMPORTANTE: Distingue entre equipamiento. Presta atencion a pistas como "hacka/hack" (maquina), "smith" (maquina guiada), "mancuerna/dumbbell" (mancuernas), "barra" (barra olimpica).
-- "sentadilla hacka" o "hack squat" = "Hack squat en maquina" (NO es con barra)
-- "press banca" = "Press de banca con barra"
-- "press inclinado" = "Press inclinado con barra"
-- "press mancuerna" = "Press con mancuernas"
-- "curl" = "Curl de biceps con barra"
-- "curl mancuerna" = "Curl de biceps con mancuernas"
-- "extension tricep" = "Extension de triceps en polea"
-- "sentadilla" (sin especificar) = "Sentadilla con barra"
-- "peso muerto" = "Peso muerto convencional"
-- "remo" = "Remo con barra"
-- "jalon/jalones" = "Jalon al pecho en polea"
-- "elevaciones laterales" = "Elevaciones laterales con mancuernas"
-- "prensa" = "Prensa de pierna en maquina"
-- Si no estas seguro del equipamiento, usa el mas comun para ese ejercicio en un gimnasio.
+5. Usa exactamente los nombres de ejercicios ya normalizados que recibes. No los cambies.
 
 Responde SOLO con JSON valido, sin markdown ni explicacion adicional:
 {"totalCalories": number, "nitRating": number, "fatigueLevel": number, "analysis": "string con analisis breve", "normalizedExercises": [{"original": "nombre original", "normalized": "nombre normalizado"}]}`;
@@ -60,6 +67,13 @@ Responde SOLO con JSON valido, sin markdown ni explicacion adicional:
       ],
       { temperature: 0.3, maxTokens: 512, model: 'analysis' }
     );
+
+    if (!Array.isArray(result.normalizedExercises)) {
+      result.normalizedExercises = normalizedExercises.map((exercise, index) => ({
+        original: exercises?.[index]?.name || exercise.name,
+        normalized: exercise.name,
+      }));
+    }
 
     return Response.json(result);
 

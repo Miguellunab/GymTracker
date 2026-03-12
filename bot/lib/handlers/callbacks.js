@@ -11,10 +11,11 @@ import {
   sendChatAction,
   sendMessageWithKeyboard
 } from '../telegram.js';
-import { MESSAGES, STATES, CALLBACKS, EMOJI } from '../constants.js';
-import { getState, clearState, getParsedWorkout, updateData } from '../state.js';
-import { getCalendarNavKeyboard, getPostWorkoutKeyboard } from '../keyboards/inline.js';
-import { getMainKeyboard } from '../keyboards/main.js';
+import { MESSAGES, CALLBACKS, EMOJI } from '../constants.js';
+import { getState, clearState, getParsedWorkout, updateData, getWorkoutAmbiguity, setWorkoutAmbiguity, setParsedWorkout } from '../state.js';
+import { getCalendarNavKeyboard, getPostWorkoutKeyboard, getWorkoutConfirmKeyboard, getWorkoutAmbiguityKeyboard } from '../keyboards/inline.js';
+import prisma from '../../../src/lib/prisma.js';
+import { resolveExerciseEntries } from '../../../src/lib/exercise-catalog.js';
 
 // Services
 import { createWorkout } from '../services/workout.js';
@@ -52,6 +53,10 @@ export async function handleCallback(chatId, messageId, callbackData, callbackQu
     return;
   }
 
+  if (callbackData.startsWith('workout_ambiguity_')) {
+    return handleWorkoutAmbiguityCallback(chatId, messageId, callbackData);
+  }
+
   // Navegación calendario
   if (callbackData.startsWith('cal_prev_') || callbackData.startsWith('cal_next_')) {
     return handleCalendarNav(chatId, messageId, callbackData);
@@ -83,7 +88,7 @@ async function handleWorkoutConfirm(chatId, messageId) {
 
   try {
     // Save workout using the new createWorkout service
-    const workout = await createWorkout({
+    await createWorkout({
       muscleGroup: parsed.muscleGroup || 'Sin especificar',
       date: new Date(),
       durationMinutes: parsed.durationMinutes || null,
@@ -209,6 +214,88 @@ async function handleCoachAnalyze(chatId, messageId) {
   });
 
   await sendMessage(chatId, `${EMOJI.COACH} *Análisis del Coach:*\n\n${analysis}`);
+}
+
+async function handleWorkoutAmbiguityCallback(chatId, messageId, callbackData) {
+  const ambiguity = getWorkoutAmbiguity(chatId);
+  if (!ambiguity?.parsedWorkout) {
+    clearState(chatId);
+    await editMessage(chatId, messageId, MESSAGES.ERROR);
+    return;
+  }
+
+  const selectedSlug = callbackData.replace('workout_ambiguity_', '');
+  if (selectedSlug === 'other') {
+    await editMessage(chatId, messageId, 'Escribeme el nombre correcto del ejercicio para continuar.');
+    return;
+  }
+
+  const selected = ambiguity.options.find((option) => option.slug === selectedSlug);
+  if (!selected) {
+    await editMessage(chatId, messageId, 'No pude identificar esa opcion. Intenta otra vez.');
+    return;
+  }
+
+  const nextWorkout = { ...ambiguity.parsedWorkout };
+  nextWorkout.exercises = [...(nextWorkout.exercises || [])];
+  nextWorkout.exercises[ambiguity.index] = {
+    ...nextWorkout.exercises[ambiguity.index],
+    name: selected.canonicalName,
+  };
+
+  const resolutions = await resolveExerciseEntries(prisma, nextWorkout.exercises || [], { allowCreateCustom: false });
+  const nextIndex = resolutions.findIndex((resolution) => resolution?.status === 'ambiguous');
+
+  if (nextIndex !== -1) {
+    const nextResolution = resolutions[nextIndex];
+    setWorkoutAmbiguity(chatId, {
+      index: nextIndex,
+      question: nextResolution.question,
+      options: [...nextResolution.options, { canonicalName: 'Otro', slug: 'other' }],
+      original: nextWorkout.exercises[nextIndex]?.name,
+      parsedWorkout: nextWorkout,
+    });
+
+    await editMessageWithInlineKeyboard(
+      chatId,
+      messageId,
+      MESSAGES.WORKOUT_AMBIGUITY_PROMPT(nextResolution.question, nextWorkout.exercises[nextIndex]?.name),
+      getWorkoutAmbiguityKeyboard([...nextResolution.options, { canonicalName: 'Otro', slug: 'other' }])
+    );
+    return;
+  }
+
+  setParsedWorkout(chatId, nextWorkout);
+  await editMessageWithInlineKeyboard(
+    chatId,
+    messageId,
+    MESSAGES.CONFIRM_PARSED_WORKOUT(formatParsedSummary(nextWorkout)),
+    getWorkoutConfirmKeyboard()
+  );
+}
+
+function formatParsedSummary(parsed) {
+  let summary = '';
+
+  if (parsed.muscleGroup) {
+    summary += `${EMOJI.MUSCLE} *Grupo:* ${parsed.muscleGroup}\n\n`;
+  }
+
+  for (const ex of parsed.exercises || []) {
+    summary += `*${ex.name}:* ${ex.weight}kg ${ex.sets}x${ex.reps}\n`;
+  }
+
+  if (parsed.didCardio) {
+    summary += `\n${EMOJI.CARDIO} Cardio: ${parsed.cardioType || 'Si'} ${parsed.cardioMinutes || ''} min\n`;
+  }
+
+  if (parsed.durationMinutes) summary += `\n⏱️ Duracion: ${parsed.durationMinutes} min`;
+  if (parsed.totalCalories) summary += `\n🔥 Calorias: ~${parsed.totalCalories} kcal`;
+  if (parsed.feeling) summary += `\n💬 ${parsed.feeling}`;
+  if (parsed.nitRating) summary += `\n⭐ NIT: ${parsed.nitRating}/10`;
+  if (parsed.fatigueLevel) summary += `\n😓 Fatiga: ${parsed.fatigueLevel}/10`;
+
+  return summary;
 }
 
 export default {

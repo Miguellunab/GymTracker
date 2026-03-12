@@ -1,3 +1,5 @@
+import { ensureExerciseCatalog, getRelevantExerciseContext } from './exercise-catalog.js';
+
 /**
  * Cliente dual de IA para GymTracker (todo via GROQ)
  * - FAST: moonshotai/kimi-k2-instruct-0905 → coach, tips, chat rapido
@@ -84,6 +86,7 @@ export async function chatJSON(messages, options = {}) {
  * Genera contexto de reportes semanales para system prompts
  */
 export async function buildReportContext(prisma) {
+  await ensureExerciseCatalog(prisma);
   const now = new Date();
 
   const getWeekNumber = (date) => {
@@ -151,6 +154,11 @@ export async function buildReportContext(prisma) {
       }
     }
     context += '\n';
+  }
+
+  const recentExerciseContext = await getRelevantExerciseContext(prisma, 'jalon prensa hack sentadilla press banca curl remo');
+  if (recentExerciseContext) {
+    context += `Memoria de ejercicios:\n${recentExerciseContext}\n\n`;
   }
 
   if (currentReport) {

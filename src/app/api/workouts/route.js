@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { ensureExerciseCatalog, resolveExerciseEntries } from '@/lib/exercise-catalog';
 
 export async function GET(request) {
   try {
+    await ensureExerciseCatalog(prisma);
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit')) || 50;
     const date = searchParams.get('date'); // Optional: get specific day
@@ -16,7 +18,7 @@ export async function GET(request) {
 
       const session = await prisma.workoutSession.findFirst({
         where: { date: { gte: startOfDay, lte: endOfDay } },
-        include: { sets: true }
+        include: { sets: { include: { exercise: true } } }
       });
 
       return NextResponse.json(session);
@@ -26,7 +28,7 @@ export async function GET(request) {
     const sessions = await prisma.workoutSession.findMany({
       orderBy: { date: 'desc' },
       take: limit,
-      include: { sets: true }
+      include: { sets: { include: { exercise: true } } }
     });
 
     return NextResponse.json(sessions);
@@ -38,6 +40,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    await ensureExerciseCatalog(prisma);
     const body = await request.json();
     const {
       muscleGroup,
@@ -58,6 +61,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'muscleGroup is required' }, { status: 400 });
     }
 
+    const exerciseResolutions = await resolveExerciseEntries(prisma, exercises || [], { allowCreateCustom: true });
+
     const session = await prisma.workoutSession.create({
       data: {
         muscleGroup,
@@ -72,15 +77,21 @@ export async function POST(request) {
         feeling,
         notes,
         sets: {
-          create: (exercises || []).map(ex => ({
-            exerciseName: ex.exerciseName,
+          create: (exercises || []).map((ex, index) => ({
+            exerciseId: exerciseResolutions[index]?.status === 'resolved'
+              ? exerciseResolutions[index].exerciseId
+              : null,
+            exerciseName: exerciseResolutions[index]?.status === 'resolved'
+              ? exerciseResolutions[index].canonicalName
+              : ex.exerciseName,
+            originalInput: ex.originalInput || ex.exerciseName,
             weight: parseFloat(ex.weight) || 0,
             sets: parseInt(ex.sets) || 1,
             reps: parseInt(ex.reps) || 1
           }))
         }
       },
-      include: { sets: true }
+      include: { sets: { include: { exercise: true } } }
     });
 
     return NextResponse.json(session);

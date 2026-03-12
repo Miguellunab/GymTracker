@@ -7,6 +7,7 @@ async function main() {
   // Clear existing data
   try {
     await prisma.workoutSet.deleteMany();
+    await prisma.exerciseCatalog.deleteMany();
     await prisma.workoutSession.deleteMany();
     await prisma.dailyReport.deleteMany();
     await prisma.weeklyReport.deleteMany();

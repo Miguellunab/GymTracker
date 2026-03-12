@@ -43,17 +43,38 @@ model WorkoutSession {
   @@index([muscleGroup])
 }
 
+model ExerciseCatalog {
+  id            String       @id @default(cuid())
+  canonicalName String       @unique
+  slug          String       @unique
+  muscleGroup   String?
+  equipment     String?
+  aliases       String[]     @default([])
+  isActive      Boolean      @default(true)
+  isAmbiguous   Boolean      @default(false)
+  sets          WorkoutSet[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([muscleGroup])
+  @@index([slug])
+}
+
 model WorkoutSet {
   id                String   @id @default(cuid())
   workoutSessionId  String
-  exerciseName      String   // Nombre libre: "Press banca", "Sentadilla", etc.
+  exerciseId        String?
+  exerciseName      String   // Nombre canónico mostrado al usuario
+  originalInput     String?  // Texto original escrito por el usuario
   weight            Float    // kg
   sets              Int      // Numero de series
   reps              Int      // Repeticiones por serie
 
-  session   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  session   WorkoutSession  @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  exercise  ExerciseCatalog? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
 
   @@index([workoutSessionId])
+  @@index([exerciseId])
   @@index([exerciseName])
 }
 

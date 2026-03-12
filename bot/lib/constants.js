@@ -15,6 +15,7 @@ export const STATES = {
   // Workout Flow (free text)
   WORKOUT_INPUT: 'workout_input',           // Esperando texto libre del entreno
   WORKOUT_CONFIRM: 'workout_confirm',       // Confirmando parseo
+  WORKOUT_AMBIGUITY: 'workout_ambiguity',
   // Weight Flow
   WEIGHT_INPUT: 'weight_input',
   // Coach Flow
@@ -119,6 +120,13 @@ ${tip}
   ERROR: 'Ocurrio un error. Intenta de nuevo.',
 
   PARSING_WORKOUT: 'Analizando tu entrenamiento...',
+
+  WORKOUT_AMBIGUITY_PROMPT: (question, original) => `
+*Necesito aclarar un ejercicio antes de guardar*
+
+Ejercicio: ${original}
+${question}
+`,
 
   REST_DAY_MARKED: 'Dia de descanso registrado.',
 

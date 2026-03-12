@@ -10,9 +10,9 @@ import {
   sendMessageWithKeyboard
 } from '../telegram.js';
 import { MESSAGES, STATES, EMOJI } from '../constants.js';
-import { getState, setState, clearState, updateData, setParsedWorkout } from '../state.js';
+import { getState, clearState, updateData, setParsedWorkout, setWorkoutAmbiguity, getWorkoutAmbiguity } from '../state.js';
 import { isMainKeyboardAction, getMainKeyboard } from '../keyboards/main.js';
-import { getWorkoutConfirmKeyboard, getCancelKeyboard } from '../keyboards/inline.js';
+import { getWorkoutConfirmKeyboard, getWorkoutAmbiguityKeyboard } from '../keyboards/inline.js';
 
 // Handlers
 import {
@@ -29,6 +29,8 @@ import {
 import { logWeight, getWeightDiff } from '../services/weight.js';
 import { chatWithCoach, parseWorkoutText } from '../services/coach.js';
 import { markRestDay } from '../services/workout.js';
+import { resolveExerciseEntries } from '../../../src/lib/exercise-catalog.js';
+import prisma from '../../../src/lib/prisma.js';
 
 /**
  * Handler principal de mensajes de texto
@@ -53,6 +55,9 @@ export async function handleMessage(chatId, text) {
 
     case STATES.COACH_CHAT:
       return handleCoachChat(chatId, text);
+
+    case STATES.WORKOUT_AMBIGUITY:
+      return handleWorkoutAmbiguityText(chatId, text);
 
     case STATES.IDLE:
       // En estado idle, intentar parsear como workout de texto libre
@@ -110,6 +115,11 @@ async function handleWorkoutInput(chatId, text) {
   }
 
   // Formatear resumen para confirmación
+  const ambiguity = await findWorkoutAmbiguities(parsed);
+  if (ambiguity) {
+    return promptWorkoutAmbiguity(chatId, ambiguity, parsed);
+  }
+
   const summary = formatParsedSummary(parsed);
 
   // Guardar parsed para confirmación
@@ -212,6 +222,11 @@ async function handleFreeTextWorkout(chatId, text) {
   }
 
   // Formatear resumen para confirmación
+  const ambiguity = await findWorkoutAmbiguities(parsed);
+  if (ambiguity) {
+    return promptWorkoutAmbiguity(chatId, ambiguity, parsed);
+  }
+
   const summary = formatParsedSummary(parsed);
 
   // Guardar parsed para confirmación
@@ -280,6 +295,60 @@ async function handleRestDay(chatId) {
     console.error('Error marking rest day:', error);
     await sendMessage(chatId, MESSAGES.ERROR);
   }
+}
+
+async function findWorkoutAmbiguities(parsed) {
+  const resolutions = await resolveExerciseEntries(prisma, parsed.exercises || [], { allowCreateCustom: false });
+  const index = resolutions.findIndex((resolution) => resolution?.status === 'ambiguous');
+  if (index === -1) return null;
+
+  return {
+    index,
+    question: resolutions[index].question,
+    options: [...resolutions[index].options, { canonicalName: 'Otro', slug: 'other' }],
+    original: parsed.exercises[index]?.name,
+  };
+}
+
+async function promptWorkoutAmbiguity(chatId, ambiguity, parsed) {
+  setWorkoutAmbiguity(chatId, {
+    ...ambiguity,
+    parsedWorkout: parsed,
+  });
+
+  await sendMessageWithInlineKeyboard(
+    chatId,
+    MESSAGES.WORKOUT_AMBIGUITY_PROMPT(ambiguity.question, ambiguity.original),
+    getWorkoutAmbiguityKeyboard(ambiguity.options)
+  );
+}
+
+async function handleWorkoutAmbiguityText(chatId, text) {
+  const ambiguity = getWorkoutAmbiguity(chatId);
+  if (!ambiguity?.parsedWorkout) {
+    clearState(chatId);
+    await sendMessage(chatId, MESSAGES.ERROR);
+    return;
+  }
+
+  const nextWorkout = { ...ambiguity.parsedWorkout };
+  nextWorkout.exercises = [...(nextWorkout.exercises || [])];
+  nextWorkout.exercises[ambiguity.index] = {
+    ...nextWorkout.exercises[ambiguity.index],
+    name: text.trim(),
+  };
+
+  const nextAmbiguity = await findWorkoutAmbiguities(nextWorkout);
+  if (nextAmbiguity) {
+    return promptWorkoutAmbiguity(chatId, nextAmbiguity, nextWorkout);
+  }
+
+  setParsedWorkout(chatId, nextWorkout);
+  await sendMessageWithInlineKeyboard(
+    chatId,
+    MESSAGES.CONFIRM_PARSED_WORKOUT(formatParsedSummary(nextWorkout)),
+    getWorkoutConfirmKeyboard()
+  );
 }
 
 export default {

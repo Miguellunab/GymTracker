@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { ensureExerciseCatalog } from '@/lib/exercise-catalog';
 
 // PATCH: Update a workout session
 export async function PATCH(request, { params }) {
     try {
+        await ensureExerciseCatalog(prisma);
         const { id } = params;
         const body = await request.json();
 
@@ -36,10 +38,11 @@ export async function PATCH(request, { params }) {
 // DELETE: Delete a workout session
 export async function DELETE(request, { params }) {
     try {
+        await ensureExerciseCatalog(prisma);
         const { id } = params;
 
         // Delete related sets first, then the session
-        await prisma.workoutSet.deleteMany({ where: { sessionId: id } });
+        await prisma.workoutSet.deleteMany({ where: { workoutSessionId: id } });
         await prisma.workoutSession.delete({ where: { id } });
 
         return NextResponse.json({ success: true });

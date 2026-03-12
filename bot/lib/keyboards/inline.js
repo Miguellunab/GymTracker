@@ -18,6 +18,17 @@ export function getWorkoutConfirmKeyboard() {
   ];
 }
 
+export function getWorkoutAmbiguityKeyboard(options = []) {
+  const rows = options
+    .filter((option) => option.slug !== 'other')
+    .map((option) => ([{ text: option.canonicalName, callback_data: `workout_ambiguity_${option.slug}` }]));
+
+  rows.push([{ text: 'Otro', callback_data: 'workout_ambiguity_other' }]);
+  rows.push([{ text: '❌ Cancelar', callback_data: CALLBACKS.WORKOUT_CANCEL }]);
+
+  return rows;
+}
+
 /**
  * Navegación de calendario
  */
@@ -62,6 +73,7 @@ export function getExitCoachKeyboard() {
 
 export default {
   getWorkoutConfirmKeyboard,
+  getWorkoutAmbiguityKeyboard,
   getCalendarNavKeyboard,
   getPostWorkoutKeyboard,
   getCancelKeyboard,

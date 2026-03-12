@@ -62,6 +62,17 @@ export function getParsedWorkout(chatId) {
   return state.data.parsedWorkout || null;
 }
 
+export function setWorkoutAmbiguity(chatId, ambiguityData) {
+  return setState(chatId, STATES.WORKOUT_AMBIGUITY, {
+    workoutAmbiguity: ambiguityData,
+  });
+}
+
+export function getWorkoutAmbiguity(chatId) {
+  const state = getState(chatId);
+  return state.data.workoutAmbiguity || null;
+}
+
 export default {
   getState,
   setState,
@@ -69,4 +80,6 @@ export default {
   updateData,
   setParsedWorkout,
   getParsedWorkout,
+  setWorkoutAmbiguity,
+  getWorkoutAmbiguity,
 };

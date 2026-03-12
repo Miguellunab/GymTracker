@@ -37,6 +37,8 @@ function WorkoutLogContent() {
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [isRestDay, setIsRestDay] = useState(false);
+  const [ambiguities, setAmbiguities] = useState([]);
+  const [exerciseSuggestions, setExerciseSuggestions] = useState({});
 
   // Form state
   const [muscleGroup, setMuscleGroup] = useState("");
@@ -59,6 +61,35 @@ function WorkoutLogContent() {
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
+
+    if (field === "name") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setExerciseSuggestions((prev) => ({ ...prev, [index]: [] }));
+        return;
+      }
+
+      fetch(`/api/exercises?query=${encodeURIComponent(trimmed)}`)
+        .then((res) => (res.ok ? res.json() : { suggestions: [] }))
+        .then((data) => {
+          setExerciseSuggestions((prev) => ({
+            ...prev,
+            [index]: data.suggestions || [],
+          }));
+        })
+        .catch(() => {
+          setExerciseSuggestions((prev) => ({ ...prev, [index]: [] }));
+        });
+    }
+  };
+
+  const chooseSuggestedExercise = (index, canonicalName) => {
+    setExercises((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], name: canonicalName };
+      return updated;
+    });
+    setExerciseSuggestions((prev) => ({ ...prev, [index]: [] }));
   };
 
   const addExercise = () => {
@@ -70,6 +101,11 @@ function WorkoutLogContent() {
     if (exercises.length <= 1) return;
     setExercises((prev) => prev.filter((_, i) => i !== index));
     setExerciseCount((c) => c - 1);
+    setExerciseSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
   };
 
   const canProceed = () => {
@@ -136,6 +172,7 @@ function WorkoutLogContent() {
 
   const analyzeWorkout = async () => {
     setAnalyzing(true);
+    setAmbiguities([]);
     try {
       const res = await fetch("/api/coach/analyze-workout", {
         method: "POST",
@@ -157,6 +194,11 @@ function WorkoutLogContent() {
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.needsClarification) {
+          setAmbiguities(data.ambiguousExercises || []);
+          setStep(1);
+          return;
+        }
         setAiResult(data);
       } else {
         setAiResult({
@@ -179,6 +221,15 @@ function WorkoutLogContent() {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const resolveAmbiguity = (exerciseName, value) => {
+    setExercises((prev) =>
+      prev.map((exercise) =>
+        exercise.name === exerciseName ? { ...exercise, name: value } : exercise
+      )
+    );
+    setAmbiguities((prev) => prev.filter((item) => item.original !== exerciseName));
   };
 
   const saveWorkout = async () => {
@@ -355,6 +406,46 @@ function WorkoutLogContent() {
                   Escribe el nombre libremente. La AI lo interpreta.
                 </p>
 
+                {ambiguities.length > 0 && (
+                  <div className="glass-card border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+                    <p className="text-sm text-amber-200 font-medium">
+                      Antes de guardar necesito aclarar algunos ejercicios.
+                    </p>
+                    {ambiguities.map((item) => (
+                      <div key={item.original} className="space-y-2">
+                        <p className="text-xs text-zinc-400">{item.question}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {item.options?.map((option) => (
+                            option.slug === "other" ? (
+                              <input
+                                key={`${item.original}-other`}
+                                type="text"
+                                placeholder="Otro ejercicio..."
+                                className="input-dark max-w-[220px]"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const value = e.currentTarget.value.trim();
+                                    if (value) resolveAmbiguity(item.original, value);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <button
+                                key={`${item.original}-${option.canonicalName}`}
+                                onClick={() => resolveAmbiguity(item.original, option.canonicalName)}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/5"
+                              >
+                                {option.canonicalName}
+                              </button>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   {exercises.map((ex, i) => (
                     <div key={i} className="glass-card p-4 space-y-3">
@@ -378,6 +469,23 @@ function WorkoutLogContent() {
                         placeholder="Ej: Press banca, sentadilla, curl..."
                         className="input-dark"
                       />
+                      {exerciseSuggestions[i]?.length > 0 && (
+                        <div className="rounded-2xl border border-white/5 bg-black/30 p-2 space-y-1">
+                          {exerciseSuggestions[i].map((suggestion) => (
+                            <button
+                              key={`${i}-${suggestion.slug}`}
+                              type="button"
+                              onClick={() => chooseSuggestedExercise(i, suggestion.canonicalName)}
+                              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5"
+                            >
+                              <span>{suggestion.canonicalName}</span>
+                              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                                {suggestion.equipment || "libre"}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="text-[10px] text-zinc-500 mb-1 block">

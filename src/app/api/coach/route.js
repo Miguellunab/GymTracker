@@ -1,5 +1,6 @@
 import { chatJSON, buildReportContext } from '@/lib/nvidia-nim';
 import prisma from '@/lib/prisma';
+import { executeCoachAction } from '@/lib/coach-actions';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +29,7 @@ Objetivo: Ayudar al usuario y, si es necesario, actualizar sus registros de entr
 Responde SIEMPRE en formato JSON valido sin markdown.
 
 Estructura JSON requerida:
-{"action": "UPDATE_SESSION" | "DELETE_SESSION" | "UPDATE_EXERCISES" | "CHAT", "targetDate": "YYYY-MM-DD", "updates": {...}, "message": "Texto de respuesta que leera el usuario."}
+{"action": "UPDATE_SESSION" | "DELETE_SESSION" | "UPDATE_EXERCISES" | "MOVE_SESSION_DATE" | "ANSWER_EXERCISE_QUERY" | "CHAT", "targetDate": "YYYY-MM-DD", "newDate": "YYYY-MM-DD", "exerciseQuery": "string", "updates": {...}, "message": "Texto de respuesta que leera el usuario."}
 
 Acciones disponibles:
 
@@ -49,11 +50,19 @@ Acciones disponibles:
 4. CHAT — Solo conversacion, sin modificar datos:
    {"action": "CHAT", "message": "..."}
 
+5. MOVE_SESSION_DATE — Mover una sesion a otra fecha:
+   {"action": "MOVE_SESSION_DATE", "targetDate": "YYYY-MM-DD", "newDate": "YYYY-MM-DD", "reason": "string", "message": "..."}
+
+6. ANSWER_EXERCISE_QUERY — Responder cuanto levanta en un ejercicio o su ultimo registro:
+   {"action": "ANSWER_EXERCISE_QUERY", "exerciseQuery": "nombre del ejercicio consultado", "message": "..."}
+
 Reglas:
 1. Si el usuario pide corregir datos de una sesion (ej: "fue pierna no brazos"), usa UPDATE_SESSION.
 2. Si el usuario pide eliminar una sesion, usa DELETE_SESSION.
 3. Si el usuario pide cambiar nombres de ejercicios, corregir peso/series/reps, agregar o quitar ejercicios, usa UPDATE_EXERCISES.
 4. Si es solo conversacion, usa CHAT.
+4.1. Si pide mover una sesion de un dia a otro, usa MOVE_SESSION_DATE.
+4.2. Si pregunta cuanto levanta en un ejercicio, cual fue su ultimo peso o su mejor marca, usa ANSWER_EXERCISE_QUERY.
 5. No modifiques fechas futuras.
 6. Se directo, conciso, en espanol. Maximo 3 frases en message.
 7. Si el usuario no ha entrenado en 3+ dias, motivalo.
@@ -69,126 +78,8 @@ ${reportContext}`
 
     const result = await chatJSON(fullMessages, { temperature: 0.5, maxTokens: 1024, model: aiModel });
 
-    let finalMessage = result.message || 'No tengo respuesta en este momento.';
-
-    // Execute DB action if requested
-    if (result.targetDate && ['UPDATE_SESSION', 'DELETE_SESSION', 'UPDATE_EXERCISES'].includes(result.action)) {
-      const startOfDay = new Date(result.targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(result.targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const existingSession = await prisma.workoutSession.findFirst({
-        where: {
-          date: { gte: startOfDay, lte: endOfDay }
-        },
-        include: { sets: true }
-      });
-
-      if (existingSession) {
-        if (result.action === 'DELETE_SESSION') {
-          await prisma.workoutSession.delete({
-            where: { id: existingSession.id }
-          });
-
-        } else if (result.action === 'UPDATE_SESSION') {
-          const updateData = {};
-          const u = result.updates || {};
-          if (u.muscleGroup !== undefined) updateData.muscleGroup = u.muscleGroup;
-          if (u.didCardio !== undefined) updateData.didCardio = u.didCardio;
-          if (u.cardioType !== undefined) updateData.cardioType = u.cardioType;
-          if (u.cardioMinutes !== undefined) updateData.cardioMinutes = u.cardioMinutes;
-          if (u.totalCalories !== undefined) updateData.totalCalories = u.totalCalories;
-          if (u.durationMinutes !== undefined) updateData.durationMinutes = u.durationMinutes;
-          if (u.fatigueLevel !== undefined) updateData.fatigueLevel = u.fatigueLevel;
-          if (u.nitRating !== undefined) updateData.nitRating = u.nitRating;
-
-          const note = `[AI: ${u.correctionReason || 'Correccion manual'}]`;
-          updateData.notes = existingSession.notes
-            ? `${existingSession.notes}\n${note}`
-            : note;
-
-          await prisma.workoutSession.update({
-            where: { id: existingSession.id },
-            data: updateData
-          });
-
-        } else if (result.action === 'UPDATE_EXERCISES') {
-          const ops = result.exerciseUpdates || [];
-          for (const op of ops) {
-            switch (op.type) {
-              case 'rename': {
-                // Find the set by name (case-insensitive)
-                const setToRename = existingSession.sets.find(
-                  s => s.exerciseName.toLowerCase() === (op.oldName || '').toLowerCase()
-                );
-                if (setToRename) {
-                  await prisma.workoutSet.update({
-                    where: { id: setToRename.id },
-                    data: { exerciseName: op.newName }
-                  });
-                }
-                break;
-              }
-              case 'update': {
-                // Find and update weight/sets/reps
-                const setToUpdate = existingSession.sets.find(
-                  s => s.exerciseName.toLowerCase() === (op.exerciseName || '').toLowerCase()
-                );
-                if (setToUpdate) {
-                  const updateFields = {};
-                  if (op.weight !== undefined) updateFields.weight = parseFloat(op.weight);
-                  if (op.sets !== undefined) updateFields.sets = parseInt(op.sets);
-                  if (op.reps !== undefined) updateFields.reps = parseInt(op.reps);
-                  if (op.newName) updateFields.exerciseName = op.newName;
-                  await prisma.workoutSet.update({
-                    where: { id: setToUpdate.id },
-                    data: updateFields
-                  });
-                }
-                break;
-              }
-              case 'add': {
-                await prisma.workoutSet.create({
-                  data: {
-                    workoutSessionId: existingSession.id,
-                    exerciseName: op.exerciseName || 'Ejercicio',
-                    weight: parseFloat(op.weight) || 0,
-                    sets: parseInt(op.sets) || 3,
-                    reps: parseInt(op.reps) || 10,
-                  }
-                });
-                break;
-              }
-              case 'delete': {
-                const setToDelete = existingSession.sets.find(
-                  s => s.exerciseName.toLowerCase() === (op.exerciseName || '').toLowerCase()
-                );
-                if (setToDelete) {
-                  await prisma.workoutSet.delete({
-                    where: { id: setToDelete.id }
-                  });
-                }
-                break;
-              }
-            }
-          }
-
-          // Add note about exercise updates
-          const note = `[AI: Ejercicios modificados - ${ops.map(o => o.type).join(', ')}]`;
-          await prisma.workoutSession.update({
-            where: { id: existingSession.id },
-            data: {
-              notes: existingSession.notes
-                ? `${existingSession.notes}\n${note}`
-                : note
-            }
-          });
-        }
-      } else {
-        finalMessage = `No encontre una sesion registrada para el ${result.targetDate}.`;
-      }
-    }
+    const execution = await executeCoachAction(prisma, result);
+    const finalMessage = execution.finalMessage;
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
@@ -202,7 +93,7 @@ ${reportContext}`
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-store',
-        'X-Coach-Action': result.action || 'CHAT'
+        'X-Coach-Action': execution.action || result.action || 'CHAT'
       }
     });
 

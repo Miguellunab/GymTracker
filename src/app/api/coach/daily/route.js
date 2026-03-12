@@ -18,7 +18,8 @@ export async function GET(request) {
     const todaySession = await prisma.workoutSession.findFirst({
       where: {
         date: { gte: startOfDay, lte: endOfDay }
-      }
+      },
+      include: { sets: { include: { exercise: true } } }
     });
 
     if (todaySession) {
