@@ -14,7 +14,7 @@ const MUSCLE_GROUPS = [
 ];
 
 const WORKOUT_STEPS = ["muscle", "exercises", "cardio", "duration", "feeling", "summary"];
-const REST_STEPS = ["muscle", "cardio", "duration", "feeling", "summary"];
+const REST_STEPS = ["muscle", "cardio", "summary"];
 
 export default function WorkoutLogPage() {
   return (
@@ -115,7 +115,9 @@ function WorkoutLogContent() {
       case "exercises":
         return exercises.every((e) => e.name.trim());
       case "cardio":
-        return true;
+        if (!isRestDay) return true;
+        if (!didCardio) return true;
+        return !!cardioType.trim() && !!cardioMinutes;
       case "duration":
         return true;
       case "feeling":
@@ -128,6 +130,24 @@ function WorkoutLogContent() {
   };
 
   const handleNext = async () => {
+    if (currentStep === "cardio" && isRestDay) {
+      setStep(step + 1);
+
+      if (!didCardio) {
+        setAiResult({
+          totalCalories: 0,
+          rirScore: 5,
+          fatigueLevel: 1,
+          analysis: "Dia de descanso total registrado. Recuperacion limpia para volver mas fuerte en la siguiente sesion.",
+          normalizedExercises: [],
+        });
+        return;
+      }
+
+      await analyzeWorkout();
+      return;
+    }
+
     if (currentStep === "feeling") {
       // After feeling, trigger AI analysis then go to summary
       setStep(step + 1);
@@ -184,7 +204,7 @@ function WorkoutLogContent() {
             ? { type: cardioType, minutes: parseInt(cardioMinutes) || 0 }
             : null,
           feeling,
-          durationMinutes: parseInt(durationMinutes) || null,
+          durationMinutes: parseInt(durationMinutes) || (isRestDay && didCardio ? parseInt(cardioMinutes) || null : null),
         }),
       });
       if (res.ok) {
@@ -551,7 +571,11 @@ function WorkoutLogContent() {
 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setDidCardio(false)}
+                    onClick={() => {
+                      setDidCardio(false);
+                      setCardioType("");
+                      setCardioMinutes("");
+                    }}
                     className={`flex-1 glass-card p-4 text-center transition-all ${
                       !didCardio ? "!border-[#00C853] bg-[#00C853]/5" : ""
                     }`}
@@ -690,7 +714,7 @@ function WorkoutLogContent() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-500">Duracion</span>
-                        <span>{durationMinutes || "?"} min</span>
+                        <span>{durationMinutes || (isRestDay && didCardio ? cardioMinutes : "?")} min</span>
                       </div>
                       {didCardio && (
                         <div className="flex justify-between text-sm">
@@ -740,6 +764,10 @@ function WorkoutLogContent() {
           ) : currentStep === "summary" ? (
             <>
               <Check className="w-4 h-4" /> Confirmar y guardar
+            </>
+          ) : currentStep === "cardio" && isRestDay ? (
+            <>
+              {didCardio ? "Analizar descanso activo" : "Registrar descanso"} <ArrowRight className="w-4 h-4" />
             </>
           ) : (
             <>
