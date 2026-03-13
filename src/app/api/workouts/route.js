@@ -51,7 +51,7 @@ export async function POST(request) {
       cardioType,
       cardioMinutes,
       fatigueLevel,
-      nitRating,
+      rirScore,
       feeling,
       notes,
       exercises // Array of { exerciseName, weight, sets, reps }
@@ -73,7 +73,7 @@ export async function POST(request) {
         cardioType: didCardio ? cardioType : null,
         cardioMinutes: didCardio ? parseInt(cardioMinutes) : null,
         fatigueLevel: fatigueLevel ? parseInt(fatigueLevel) : null,
-        nitRating: nitRating ? parseInt(nitRating) : null,
+        rirScore: rirScore !== undefined && rirScore !== null ? parseInt(rirScore) : null,
         feeling,
         notes,
         sets: {

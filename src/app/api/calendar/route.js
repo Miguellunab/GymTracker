@@ -25,7 +25,7 @@ export async function GET(request) {
         totalCalories: true,
         durationMinutes: true,
         fatigueLevel: true,
-        nitRating: true,
+        rirScore: true,
         didCardio: true
       },
       orderBy: { date: 'asc' }
@@ -35,14 +35,19 @@ export async function GET(request) {
     const calendarData = {};
     sessions.forEach(s => {
       const d = new Date(s.date).toISOString().split('T')[0];
+      const sessionType = s.muscleGroup === 'Descanso'
+        ? (s.didCardio ? 'active-rest' : 'rest')
+        : 'training';
+
       calendarData[d] = {
         id: s.id,
         muscleGroup: s.muscleGroup,
         calories: s.totalCalories || 0,
         duration: s.durationMinutes || 0,
         fatigue: s.fatigueLevel || 0,
-        nit: s.nitRating || 0,
-        didCardio: s.didCardio
+        rir: s.rirScore ?? 0,
+        didCardio: s.didCardio,
+        sessionType
       };
     });
 

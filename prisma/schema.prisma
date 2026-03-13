@@ -29,7 +29,7 @@ model WorkoutSession {
   cardioMinutes   Int?
 
   fatigueLevel    Int?     // 1-10, generado por AI
-  nitRating       Int?     // 1-10 (nivel de intensidad total), generado por AI
+  rirScore        Int?     // 0-5 reps in reserve estimadas para la sesion
   feeling         String?  // Texto libre del usuario sobre como se sintio
 
   notes           String?

@@ -269,8 +269,8 @@ function formatParsedSummary(parsed) {
     summary += `\n💬 ${parsed.feeling}`;
   }
 
-  if (parsed.nitRating) {
-    summary += `\n⭐ NIT: ${parsed.nitRating}/10`;
+  if (parsed.rirScore !== undefined && parsed.rirScore !== null) {
+    summary += `\n⭐ RIR: ${parsed.rirScore}/5`;
   }
 
   if (parsed.fatigueLevel) {

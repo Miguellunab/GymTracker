@@ -10,8 +10,8 @@ const WELCOME_MESSAGE = {
 };
 
 const MODELS = {
-  fast: { label: "K2", desc: "Rapido", icon: Zap, color: "#00C853" },
-  analysis: { label: "Llama 70B", desc: "Potente", icon: Sparkles, color: "#2196F3" },
+  coach_llama: { label: "Llama", desc: "Groq", icon: Zap, color: "#00C853" },
+  coach_deepseek: { label: "DeepSeek", desc: "R1", icon: Sparkles, color: "#2196F3" },
 };
 
 export function AICoachShell() {
@@ -19,7 +19,7 @@ export function AICoachShell() {
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [model, setModel] = useState("fast");
+  const [model, setModel] = useState("coach_llama");
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -119,7 +119,7 @@ export function AICoachShell() {
               <p className="text-sm font-semibold">AI Coach</p>
               {/* Model toggle */}
               <button
-                onClick={() => setModel(model === "fast" ? "analysis" : "fast")}
+                onClick={() => setModel(model === "coach_llama" ? "coach_deepseek" : "coach_llama")}
                 className="flex items-center gap-1 text-xs transition-colors hover:opacity-80"
                 style={{ color: currentModel.color }}
                 disabled={loading}

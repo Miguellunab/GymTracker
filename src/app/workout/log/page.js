@@ -198,7 +198,7 @@ function WorkoutLogContent() {
       } else {
         setAiResult({
           totalCalories: 300,
-          nitRating: 5,
+          rirScore: 2,
           fatigueLevel: 5,
           analysis: "No se pudo conectar con AI. Estimaciones por defecto.",
           normalizedExercises: [],
@@ -208,7 +208,7 @@ function WorkoutLogContent() {
       console.error("Analysis error:", e);
       setAiResult({
         totalCalories: 300,
-        nitRating: 5,
+        rirScore: 2,
         fatigueLevel: 5,
         analysis: "Error de conexion. Estimaciones por defecto.",
         normalizedExercises: [],
@@ -252,7 +252,7 @@ function WorkoutLogContent() {
           cardioType: didCardio ? cardioType : null,
           cardioMinutes: didCardio ? parseInt(cardioMinutes) : null,
           fatigueLevel: aiResult.fatigueLevel,
-          nitRating: aiResult.nitRating,
+          rirScore: aiResult.rirScore,
           feeling,
           exercises: exercises.map((e) => ({
             exerciseName:
@@ -297,7 +297,7 @@ function WorkoutLogContent() {
           cardioType: didCardio ? cardioType : null,
           cardioMinutes: didCardio ? parseInt(cardioMinutes) || null : null,
           fatigueLevel: aiResult?.fatigueLevel ?? 1,
-          nitRating: aiResult?.nitRating ?? 1,
+          rirScore: aiResult?.rirScore ?? 2,
           feeling: feeling || null,
           exercises: [],
         }),
@@ -627,7 +627,7 @@ function WorkoutLogContent() {
                 <p className="text-sm text-zinc-500">
                   {isRestDay
                     ? "Escribe libremente. La AI evaluara tu descanso o cardio suave."
-                    : "Escribe libremente. La AI genera tu NIT y fatiga."}
+                    : "Escribe libremente. La AI genera tu RIR estimado y fatiga."}
                 </p>
                 <textarea
                   value={feeling}
@@ -670,9 +670,9 @@ function WorkoutLogContent() {
                       </div>
                       <div className="glass-card p-3 text-center">
                         <p className="text-2xl font-bold font-display text-[#2196F3]">
-                          {aiResult.nitRating}/10
+                          {aiResult.rirScore}
                         </p>
-                        <p className="text-[10px] text-zinc-500 mt-1">NIT</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">RIR</p>
                       </div>
                       <div className="glass-card p-3 text-center">
                         <p className="text-2xl font-bold font-display text-orange-400">

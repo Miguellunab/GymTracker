@@ -212,7 +212,7 @@ export async function executeCoachAction(prisma = prismaClient, result) {
     if (updates.totalCalories !== undefined) updateData.totalCalories = updates.totalCalories;
     if (updates.durationMinutes !== undefined) updateData.durationMinutes = updates.durationMinutes;
     if (updates.fatigueLevel !== undefined) updateData.fatigueLevel = updates.fatigueLevel;
-    if (updates.nitRating !== undefined) updateData.nitRating = updates.nitRating;
+    if (updates.rirScore !== undefined) updateData.rirScore = updates.rirScore;
     if (updates.feeling !== undefined) updateData.feeling = updates.feeling;
 
     const note = `[AI: ${updates.correctionReason || 'Correccion manual'}]`;

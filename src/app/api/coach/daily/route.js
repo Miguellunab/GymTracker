@@ -52,7 +52,7 @@ Responde SOLO con JSON valido, sin markdown:
         { role: 'system', content: 'Eres un coach de gym experto. Responde siempre en JSON valido sin markdown.' },
         { role: 'user', content: prompt }
       ],
-      { temperature: 0.6, maxTokens: 256, model: 'fast' }
+      { temperature: 0.6, maxTokens: 256, model: 'daily' }
     );
 
     return Response.json(result);

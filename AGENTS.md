@@ -8,14 +8,14 @@ El sistema principal de IA funciona como un entrenador personal integrado direct
 
 ### Capacidades
 1. **Coach Diario**: Consejo proactivo en el home basado en entrenamientos recientes y reportes semanales.
-2. **Análisis de Entrenamiento**: Interpreta ejercicios con texto libre, calcula calorías, genera ratings NIT y fatiga.
+2. **Análisis de Entrenamiento**: Interpreta ejercicios con texto libre, calcula calorías, genera RIR estimado y fatiga.
 3. **Chat Interactivo (`AICoachShell`)**: Interfaz conversacional con contexto de entrenamientos, puede modificar sesiones (UPDATE_SESSION, DELETE_SESSION).
 4. **Reportes**: Generación automática de reportes diarios y semanales para mantener contexto eficiente.
 
 ### Arquitectura Técnica
 - **Frontend**: Componentes React (`AICoachShell.jsx`, `AICoachTrigger.jsx`) + páginas con Framer Motion.
 - **Backend**: API Routes de Next.js (`/api/coach/*`, `/api/reports/*`) como proxy hacia NVIDIA NIM.
-- **Modelo**: `moonshotai/kimi-k2-5` via `https://integrate.api.nvidia.com/v1/chat/completions` (OpenAI-compatible).
+- **Modelos**: Groq para coach/tips con Llama y SambaNova para análisis con DeepSeek R1.
 - **Contexto**: Reporte semanal actual + anterior (no historial completo) inyectado via `buildReportContext()`.
 - **Cliente centralizado**: `src/lib/nvidia-nim.js` con funciones `chat()`, `chatJSON()`, `buildReportContext()`.
 

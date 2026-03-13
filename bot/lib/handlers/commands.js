@@ -96,6 +96,7 @@ export async function handleHistory(chatId) {
     });
 
     const isRest = w.muscleGroup === 'Descanso';
+    const displayGroup = isRest && w.didCardio ? 'Descanso activo' : w.muscleGroup;
     const emoji = isRest ? EMOJI.REST : EMOJI.WORKOUT;
 
     let details = '';
@@ -105,10 +106,10 @@ export async function handleHistory(chatId) {
       details = ` (${duration}min, ${calories}kcal)`;
 
       if (w.fatigueLevel) details += ` fatiga:${w.fatigueLevel}/10`;
-      if (w.nitRating) details += ` NIT:${w.nitRating}/10`;
+      if (w.rirScore !== undefined && w.rirScore !== null) details += ` RIR:${w.rirScore}/5`;
     }
 
-    text += `${emoji} *${dateStr}* - ${w.muscleGroup}${details}\n`;
+    text += `${emoji} *${dateStr}* - ${displayGroup}${details}\n`;
 
     // Show exercises
     if (!isRest && w.sets && w.sets.length > 0) {

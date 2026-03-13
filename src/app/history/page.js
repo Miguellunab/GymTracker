@@ -85,6 +85,11 @@ export default function HistoryPage() {
     ([a], [b]) => b.localeCompare(a)
   );
 
+  const getDisplayGroup = (session) => {
+    if (session.muscleGroup === "Descanso" && session.didCardio) return "Descanso activo";
+    return session.muscleGroup;
+  };
+
   const toggleWeek = (key) => {
     if (expandedWeek === key) {
       setExpandedWeek(null);
@@ -232,7 +237,7 @@ export default function HistoryPage() {
                               >
                                 <div>
                                   <p className="text-sm font-medium">
-                                    {session.muscleGroup}
+                                    {getDisplayGroup(session)}
                                   </p>
                                   <p className="text-xs text-zinc-500">
                                     {format(new Date(session.date), "EEEE d", {
@@ -246,7 +251,7 @@ export default function HistoryPage() {
                                   </p>
                                   <div className="flex items-center gap-2 text-[10px] text-zinc-600">
                                     <span>F:{session.fatigueLevel || 0}</span>
-                                    <span>N:{session.nitRating || 0}</span>
+                                    <span>RIR:{session.rirScore ?? 0}</span>
                                     {session.durationMinutes && (
                                       <span>{session.durationMinutes}min</span>
                                     )}

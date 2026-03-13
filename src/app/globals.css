@@ -90,6 +90,10 @@ main {
 .day-pill.has-workout {
   border: 1.5px solid var(--accent-green);
 }
+.day-pill.active-rest {
+  border: 1.5px solid var(--accent-blue);
+  background: rgba(33, 150, 243, 0.08);
+}
 .day-pill.rest {
   border: 1.5px solid transparent;
 }

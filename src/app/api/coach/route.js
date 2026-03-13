@@ -9,7 +9,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     messages = body.messages;
-    aiModel = body.model || 'fast';
+    aiModel = body.model || 'coach_llama';
   } catch (e) {
     return new Response('Invalid JSON payload', { status: 400 });
   }
@@ -34,7 +34,7 @@ Estructura JSON requerida:
 Acciones disponibles:
 
 1. UPDATE_SESSION — Modificar datos generales de una sesion:
-   {"action": "UPDATE_SESSION", "targetDate": "YYYY-MM-DD", "updates": {"muscleGroup": "string", "didCardio": true/false, "cardioType": "string", "cardioMinutes": 0, "totalCalories": 0, "durationMinutes": 0, "fatigueLevel": 0, "nitRating": 0, "correctionReason": "string"}, "message": "..."}
+     {"action": "UPDATE_SESSION", "targetDate": "YYYY-MM-DD", "updates": {"muscleGroup": "string", "didCardio": true/false, "cardioType": "string", "cardioMinutes": 0, "totalCalories": 0, "durationMinutes": 0, "fatigueLevel": 0, "rirScore": 0, "correctionReason": "string"}, "message": "..."}
 
 2. DELETE_SESSION — Eliminar una sesion completa:
    {"action": "DELETE_SESSION", "targetDate": "YYYY-MM-DD", "message": "..."}

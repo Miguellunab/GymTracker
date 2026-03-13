@@ -22,7 +22,7 @@ export async function createWorkout(data) {
       cardioType,
       cardioMinutes,
       fatigueLevel,
-      nitRating,
+      rirScore,
       feeling,
       notes,
       exercises, // [{ name, weight, sets, reps }]
@@ -52,7 +52,7 @@ export async function createWorkout(data) {
         cardioType: cardioType || null,
         cardioMinutes: cardioMinutes || null,
         fatigueLevel: fatigueLevel || null,
-        nitRating: nitRating || null,
+        rirScore: rirScore !== undefined && rirScore !== null ? rirScore : null,
         feeling: feeling || null,
         notes: notes || null,
         sets: {
@@ -90,7 +90,7 @@ export async function getRecentWorkouts(limit = 7) {
       cardioType: w.cardioType,
       cardioMinutes: w.cardioMinutes,
       fatigueLevel: w.fatigueLevel,
-      nitRating: w.nitRating,
+      rirScore: w.rirScore,
       feeling: w.feeling,
       notes: w.notes,
       sets: w.sets.map(s => ({

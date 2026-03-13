@@ -112,7 +112,7 @@ Genera un consejo del día corto (2-3 oraciones máximo). Incluye qué grupo mus
     const tipText = (await chat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Dame el consejo del día para hoy ${todayStr}` }
-    ], { temperature: 0.8, maxTokens: 200 })).trim();
+    ], { temperature: 0.8, maxTokens: 200, model: 'daily' })).trim();
 
     // --- 4. Send message ---
     const message = `💪 *Buenos días!*\n\n🎯 ${tipText}`;

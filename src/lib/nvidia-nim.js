@@ -1,56 +1,92 @@
 import { ensureExerciseCatalog, getRelevantExerciseContext } from './exercise-catalog.js';
 
-/**
- * Cliente dual de IA para GymTracker (todo via GROQ)
- * - FAST: moonshotai/kimi-k2-instruct-0905 → coach, tips, chat rapido
- * - ANALYSIS: llama-3.3-70b-versatile → analisis de workout (mas potente)
- */
-
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL_FAST = 'moonshotai/kimi-k2-instruct-0905';
-const MODEL_ANALYSIS = 'llama-3.3-70b-versatile';
+const SAMBANOVA_API_URL = 'https://api.sambanova.ai/v1/chat/completions';
 
-/**
- * Llamada a la IA via GROQ
- * @param {Array} messages - [{role, content}]
- * @param {Object} options
- * @param {string} options.model - 'fast' (kimi-k2) o 'analysis' (llama-3.3-70b)
- */
-export async function chat(messages, options = {}) {
-  const {
-    temperature = 0.6,
-    maxTokens = 4096,
-    model = 'fast',
-  } = options;
+const MODEL_REGISTRY = {
+  coach_llama: {
+    provider: 'groq',
+    modelId: 'llama-3.3-70b-versatile',
+    apiKeyEnv: 'GROQ_API_KEY',
+    label: 'Llama 70B',
+  },
+  coach_deepseek: {
+    provider: 'sambanova',
+    modelId: 'DeepSeek-R1-0528',
+    apiKeyEnv: 'SAMBANOVA_API_KEY',
+    label: 'DeepSeek R1',
+  },
+  daily: {
+    provider: 'groq',
+    modelId: 'llama-3.3-70b-versatile',
+    apiKeyEnv: 'GROQ_API_KEY',
+    label: 'Llama 70B',
+  },
+  analysis: {
+    provider: 'sambanova',
+    modelId: 'DeepSeek-R1-0528',
+    apiKeyEnv: 'SAMBANOVA_API_KEY',
+    label: 'DeepSeek R1',
+  },
+};
 
-  const modelId = model === 'analysis' ? MODEL_ANALYSIS : MODEL_FAST;
-  const apiKey = process.env.GROQ_API_KEY;
+function getModelConfig(model = 'coach_llama') {
+  return MODEL_REGISTRY[model] || MODEL_REGISTRY.coach_llama;
+}
 
+function getApiUrl(provider) {
+  return provider === 'sambanova' ? SAMBANOVA_API_URL : GROQ_API_URL;
+}
+
+function getApiKey(config) {
+  const apiKey = process.env[config.apiKeyEnv];
   if (!apiKey) {
-    throw new Error('GROQ_API_KEY no configurada');
+    throw new Error(`${config.apiKeyEnv} no configurada`);
   }
+  return apiKey;
+}
 
+function buildRequestBody(config, messages, options) {
   const body = {
-    model: modelId,
+    model: config.modelId,
     messages,
-    temperature,
-    max_tokens: maxTokens,
+    temperature: options.temperature,
+    max_tokens: options.maxTokens,
     top_p: 0.9,
     stream: false,
   };
 
-  const response = await fetch(GROQ_API_URL, {
+  if (config.provider === 'sambanova') {
+    body.stream = false;
+  }
+
+  return body;
+}
+
+export async function chat(messages, options = {}) {
+  const {
+    temperature = 0.6,
+    maxTokens = 4096,
+    model = 'coach_llama',
+  } = options;
+
+  const config = getModelConfig(model);
+  const apiKey = getApiKey(config);
+  const apiUrl = getApiUrl(config.provider);
+  const body = buildRequestBody(config, messages, { temperature, maxTokens });
+
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`AI Error (${modelId}):`, response.status, errorText);
+    console.error(`AI Error (${config.label}):`, response.status, errorText);
     throw new Error(`AI API error: ${response.status}`);
   }
 
@@ -64,9 +100,6 @@ export async function chat(messages, options = {}) {
   return content;
 }
 
-/**
- * Chat con respuesta JSON parseada
- */
 export async function chatJSON(messages, options = {}) {
   const content = await chat(messages, options);
 
@@ -82,9 +115,6 @@ export async function chatJSON(messages, options = {}) {
   }
 }
 
-/**
- * Genera contexto de reportes semanales para system prompts
- */
 export async function buildReportContext(prisma) {
   await ensureExerciseCatalog(prisma);
   const now = new Date();
@@ -125,20 +155,22 @@ export async function buildReportContext(prisma) {
   });
 
   let context = `Fecha actual: ${now.toISOString().slice(0, 10)}.\n`;
-  context += `Peso corporal actual: ${lastWeight ? lastWeight.weight + ' kg' : 'Sin registrar'}.\n`;
+  context += `Peso corporal actual: ${lastWeight ? `${lastWeight.weight} kg` : 'Sin registrar'}.\n`;
   context += `Sesiones ultimos 7 dias: ${recentSessions.length}.\n\n`;
 
   if (recentSessions.length > 0) {
     context += 'Sesiones recientes:\n';
     for (const session of recentSessions) {
       const dateStr = new Date(session.date).toISOString().slice(0, 10);
-      const muscleGroup = session.muscleGroup || 'Sin especificar';
+      const muscleGroup = session.didCardio && session.muscleGroup === 'Descanso'
+        ? 'Descanso activo'
+        : session.muscleGroup || 'Sin especificar';
       const fatigue = session.fatigueLevel ? `Fatiga: ${session.fatigueLevel}/10` : '';
-      const nit = session.nitRating ? `NIT: ${session.nitRating}/10` : '';
+      const rir = session.rirScore !== null && session.rirScore !== undefined ? `RIR: ${session.rirScore}` : '';
       const cal = session.totalCalories ? `${session.totalCalories} kcal` : '';
-      const cardio = session.didCardio ? `Cardio: ${session.cardioMinutes}min` : '';
+      const cardio = session.didCardio ? `Cardio: ${session.cardioMinutes}min ${session.cardioType || ''}`.trim() : '';
 
-      context += `- ${dateStr}: ${muscleGroup} | ${cal} ${fatigue} ${nit} ${cardio}\n`;
+      context += `- ${dateStr}: ${muscleGroup} | ${cal} ${fatigue} ${rir} ${cardio}\n`;
 
       if (session.sets && session.sets.length > 0) {
         const exerciseSets = {};

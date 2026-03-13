@@ -128,6 +128,13 @@ export default function HomeContent() {
 
   const isToday = isSameDay(selectedDate, new Date());
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+  const isActiveRestDay = daySession?.muscleGroup === "Descanso" && daySession?.didCardio;
+
+  const getDisplayGroup = (session) => {
+    if (!session) return "Descanso";
+    if (session.muscleGroup === "Descanso" && session.didCardio) return "Descanso activo";
+    return session.muscleGroup || "Descanso";
+  };
 
   return (
     <div className="page-top pb-8 space-y-6" suppressHydrationWarning>
@@ -165,14 +172,16 @@ export default function HomeContent() {
           {weekDays.map((day) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const isSelected = isSameDay(day, selectedDate);
-            const hasWorkout = !!calendarData[dateStr];
+            const sessionType = calendarData[dateStr]?.sessionType;
+            const hasWorkout = !!calendarData[dateStr] && sessionType === "training";
+            const isActiveRest = sessionType === "active-rest";
             const isDayToday = isSameDay(day, new Date());
 
             return (
               <button
                 key={dateStr}
                 onClick={() => setSelectedDate(day)}
-                className={`day-pill ${isSelected ? "active" : hasWorkout ? "has-workout" : "rest"}`}
+                className={`day-pill ${isSelected ? "active" : hasWorkout ? "has-workout" : isActiveRest ? "active-rest" : "rest"}`}
               >
                 <span className="text-[10px] font-medium opacity-60">
                   {format(day, "EEE", { locale: es }).slice(0, 2).toUpperCase()}
@@ -199,6 +208,19 @@ export default function HomeContent() {
           transition={{ duration: 0.2 }}
           className="space-y-4"
         >
+          {daySession && daySession.muscleGroup === "Descanso" && (
+            <div className={`glass-card p-4 border ${isActiveRestDay ? "border-[#2196F3]/40 bg-[#2196F3]/8" : "border-white/5 bg-white/[0.02]"}`}>
+              <p className={`text-sm font-semibold ${isActiveRestDay ? "text-[#7ec8ff]" : "text-zinc-300"}`}>
+                {isActiveRestDay ? "Descanso activo" : "Descanso total"}
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">
+                {isActiveRestDay
+                  ? `Cardio registrado: ${daySession.cardioType || "cardio"} ${daySession.cardioMinutes || 0} min`
+                  : "Dia enfocado en recuperacion sin cardio registrado."}
+              </p>
+            </div>
+          )}
+
           {/* Stats Grid */}
           <div className="stat-grid">
             <div className="stat-item">
@@ -206,7 +228,7 @@ export default function HomeContent() {
                 <Dumbbell className="w-3 h-3" /> Grupo
               </span>
               <span className="stat-value text-base">
-                {daySession?.muscleGroup || "Descanso"}
+                {getDisplayGroup(daySession)}
               </span>
             </div>
             <div className="stat-item">
@@ -238,11 +260,11 @@ export default function HomeContent() {
             </div>
             <div className="stat-item">
               <span className="stat-label flex items-center gap-1.5">
-                <Zap className="w-3 h-3" /> NIT
+                <Zap className="w-3 h-3" /> RIR
               </span>
               <span className="stat-value">
-                {daySession?.nitRating || 0}
-                <span className="text-xs font-normal text-zinc-500 ml-1">/10</span>
+                {daySession?.rirScore ?? 0}
+                <span className="text-xs font-normal text-zinc-500 ml-1">/5</span>
               </span>
             </div>
             <div className="stat-item">

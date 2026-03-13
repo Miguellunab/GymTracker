@@ -1,6 +1,6 @@
 /**
  * Servicio de Coach AI
- * Integración con NVIDIA NIM (Kimi K2.5) para consejos, análisis y modificación de entrenamientos
+ * Integración con Groq + SambaNova para consejos, análisis y modificación de entrenamientos
  */
 
 import { chat, chatJSON, buildReportContext } from '../../../src/lib/nvidia-nim.js';
@@ -30,7 +30,7 @@ Da UN consejo breve y directo para hoy (2-3 oraciones máximo). Sugiere qué gru
     const message = await chat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: '¿Qué debería hacer hoy?' }
-    ], { temperature: 0.8, maxTokens: 200 });
+    ], { temperature: 0.8, maxTokens: 200, model: 'daily' });
 
     let action = 'Entreno';
     const lower = message.toLowerCase();
@@ -79,14 +79,14 @@ Responde SIEMPRE en formato JSON válido:
   "targetDate": "YYYY-MM-DD",
   "newDate": "YYYY-MM-DD",
   "exerciseQuery": "string",
-  "updates": {
-    "muscleGroup": "string",
-    "didCardio": boolean,
-    "cardioMinutes": number,
-    "totalCalories": number,
-    "fatigueLevel": number,
-    "nitRating": number,
-    "correctionReason": "string"
+    "updates": {
+      "muscleGroup": "string",
+      "didCardio": boolean,
+      "cardioMinutes": number,
+      "totalCalories": number,
+      "fatigueLevel": number,
+      "rirScore": number,
+      "correctionReason": "string"
   },
   "message": "Texto que verá el usuario"
 }
@@ -114,10 +114,10 @@ ${exerciseContext}`;
 
     let result;
     try {
-      result = await chatJSON(messages, { temperature: 0.5, maxTokens: 500 });
+      result = await chatJSON(messages, { temperature: 0.5, maxTokens: 500, model: 'coach_deepseek' });
     } catch (e) {
       // If JSON parsing fails, return raw response
-      const rawResponse = await chat(messages, { temperature: 0.5, maxTokens: 500 });
+      const rawResponse = await chat(messages, { temperature: 0.5, maxTokens: 500, model: 'coach_deepseek' });
       return rawResponse || 'No pude procesar tu mensaje.';
     }
 
@@ -146,8 +146,10 @@ INSTRUCCIONES:
 3. Identifica si hizo cardio (tipo y minutos)
 4. Extrae duración total en minutos
 5. Extrae cómo se sintió (texto libre)
-6. Genera NIT rating (1-10, intensidad) y nivel de fatiga (1-10) basado en lo descrito
+6. Genera RIR global estimado (0-5) y nivel de fatiga (1-10) basado en lo descrito
 7. Estima calorías totales
+8. Si el usuario describe sensaciones mixtas entre ejercicios, analiza toda la sesion completa antes de decidir. No generalices solo por la primera frase.
+9. Puedes tomarte el tiempo necesario para pensar, pero responde solo con el JSON final.
 
 RESPONDE SOLO en este formato JSON:
 {
@@ -160,7 +162,7 @@ RESPONDE SOLO en este formato JSON:
   "cardioMinutes": 0,
   "durationMinutes": 60,
   "feeling": "Me sentí bien",
-  "nitRating": 7,
+  "rirScore": 2,
   "fatigueLevel": 6,
   "totalCalories": 350,
   "notes": null
@@ -176,7 +178,7 @@ REGLAS:
     const result = await chatJSON([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: text }
-    ], { temperature: 0.3, maxTokens: 600 });
+    ], { temperature: 0.2, maxTokens: 700, model: 'analysis' });
 
     return result;
   } catch (error) {
@@ -209,7 +211,7 @@ Da una valoración honesta. Si fue buen entrenamiento, felicita. Si fue corto/po
     const response = await chat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: 'Analiza mi entrenamiento' }
-    ], { temperature: 0.7, maxTokens: 200 });
+    ], { temperature: 0.7, maxTokens: 200, model: 'coach_llama' });
 
     return response || '¡Buen trabajo!';
   } catch (error) {

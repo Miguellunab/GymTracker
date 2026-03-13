@@ -7,7 +7,7 @@ Bot de Telegram para registrar entrenamientos con texto libre y hablar con el Co
 ### Registro de Entrenamiento (Texto Libre)
 - Escribe `/workout` y describe tu entreno en texto libre
 - La IA interpreta ejercicios, peso, series, reps, cardio, duración y cómo te sentiste
-- Genera NIT rating y nivel de fatiga automáticamente
+- Genera RIR estimado y nivel de fatiga automáticamente
 - También detecta entrenamientos escritos directamente en el chat (sin comando)
 - Ejemplo: "Pecho/Espalda. Press banca 80kg 3x10, remo barra 70kg 3x12. Caminadora 15 min. Total 65 min. Me sentí fuerte."
 
@@ -33,7 +33,8 @@ TELEGRAM_OWNER_CHAT_ID=tu_chat_id
 TELEGRAM_WEBHOOK_SECRET=un_string_aleatorio_seguro
 
 # AI (NVIDIA NIM - Kimi K2.5)
-NVIDIA_API_KEY=tu_api_key_nvidia
+GROQ_API_KEY=tu_api_key_groq
+SAMBANOVA_API_KEY=tu_api_key_sambanova
 
 # Para cron job (opcional, Vercel lo genera)
 CRON_SECRET=otro_string_aleatorio
@@ -110,7 +111,7 @@ bot/
 
 src/
 ├── lib/
-│   ├── nvidia-nim.js       # Cliente centralizado NVIDIA NIM
+│   ├── nvidia-nim.js       # Cliente centralizado Groq + SambaNova
 │   └── prisma.js           # Cliente Prisma
 ├── app/api/
 │   ├── telegram/route.js       # Webhook del bot

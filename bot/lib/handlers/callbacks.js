@@ -97,7 +97,7 @@ async function handleWorkoutConfirm(chatId, messageId) {
       cardioType: parsed.cardioType || null,
       cardioMinutes: parsed.cardioMinutes || null,
       fatigueLevel: parsed.fatigueLevel || null,
-      nitRating: parsed.nitRating || null,
+      rirScore: parsed.rirScore !== undefined && parsed.rirScore !== null ? parsed.rirScore : null,
       feeling: parsed.feeling || null,
       notes: parsed.notes || null,
       exercises: parsed.exercises || [],
@@ -125,8 +125,8 @@ async function handleWorkoutConfirm(chatId, messageId) {
     if (parsed.fatigueLevel) {
       summary += `😓 Fatiga: ${parsed.fatigueLevel}/10\n`;
     }
-    if (parsed.nitRating) {
-      summary += `⭐ NIT: ${parsed.nitRating}/10\n`;
+    if (parsed.rirScore !== undefined && parsed.rirScore !== null) {
+      summary += `⭐ RIR: ${parsed.rirScore}/5\n`;
     }
     if (parsed.didCardio) {
       summary += `${EMOJI.CARDIO} Cardio: ${parsed.cardioType || 'Sí'} ${parsed.cardioMinutes || ''}min\n`;
@@ -292,7 +292,7 @@ function formatParsedSummary(parsed) {
   if (parsed.durationMinutes) summary += `\n⏱️ Duracion: ${parsed.durationMinutes} min`;
   if (parsed.totalCalories) summary += `\n🔥 Calorias: ~${parsed.totalCalories} kcal`;
   if (parsed.feeling) summary += `\n💬 ${parsed.feeling}`;
-  if (parsed.nitRating) summary += `\n⭐ NIT: ${parsed.nitRating}/10`;
+  if (parsed.rirScore !== undefined && parsed.rirScore !== null) summary += `\n⭐ RIR: ${parsed.rirScore}/5`;
   if (parsed.fatigueLevel) summary += `\n😓 Fatiga: ${parsed.fatigueLevel}/10`;
 
   return summary;

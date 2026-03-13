@@ -14,7 +14,7 @@ export async function PATCH(request, { params }) {
         if (body.totalCalories !== undefined) updateData.totalCalories = body.totalCalories;
         if (body.muscleGroup !== undefined) updateData.muscleGroup = body.muscleGroup;
         if (body.fatigueLevel !== undefined) updateData.fatigueLevel = body.fatigueLevel;
-        if (body.nitRating !== undefined) updateData.nitRating = body.nitRating;
+        if (body.rirScore !== undefined) updateData.rirScore = body.rirScore;
         if (body.feeling !== undefined) updateData.feeling = body.feeling;
         if (body.cardioType !== undefined) updateData.cardioType = body.cardioType;
         if (body.didCardio !== undefined) updateData.didCardio = body.didCardio;

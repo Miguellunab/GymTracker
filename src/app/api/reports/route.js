@@ -123,11 +123,11 @@ async function generateDailyReport(date) {
   const prompt = `Genera un reporte diario de entrenamiento para ${dateStr}.
 
 ${session ? `Sesion del dia:
-- Grupo muscular: ${session.muscleGroup}
+- Grupo muscular: ${session.didCardio && session.muscleGroup === 'Descanso' ? 'Descanso activo' : session.muscleGroup}
 - Duracion: ${session.durationMinutes || '?'} min
 - Calorias: ${session.totalCalories || '?'} kcal
 - Fatiga: ${session.fatigueLevel || '?'}/10
-- NIT: ${session.nitRating || '?'}/10
+- RIR: ${session.rirScore ?? '?'}
 - Cardio: ${session.didCardio ? `Si - ${session.cardioType} ${session.cardioMinutes}min` : 'No'}
 - Feeling: ${session.feeling || 'Sin comentario'}
 - Ejercicios: ${session.sets.map(s => `${s.exerciseName} ${s.weight}kg ${s.sets}x${s.reps}`).join(', ')}` : 'DIA DE DESCANSO - No hubo entrenamiento.'}
@@ -149,7 +149,7 @@ Genera JSON con:
 
   const content = await chatJSON(
     [{ role: 'user', content: prompt }],
-    { temperature: 0.3, maxTokens: 512 }
+    { temperature: 0.3, maxTokens: 512, model: 'coach_llama' }
   );
 
   const weekNumber = getWeekNumber(date);
@@ -211,7 +211,7 @@ Sesiones de la semana:
 ${sessions.map(s => {
     const d = new Date(s.date).toISOString().slice(0, 10);
     const exercises = s.sets.map(set => `${set.exerciseName}: ${set.weight}kg ${set.sets}x${set.reps}`).join('; ');
-    return `- ${d}: ${s.muscleGroup} | ${s.totalCalories || '?'}kcal | Fatiga:${s.fatigueLevel || '?'} | NIT:${s.nitRating || '?'} | ${exercises}`;
+    return `- ${d}: ${s.didCardio && s.muscleGroup === 'Descanso' ? 'Descanso activo' : s.muscleGroup} | ${s.totalCalories || '?'}kcal | Fatiga:${s.fatigueLevel || '?'} | RIR:${s.rirScore ?? '?'} | ${exercises}`;
   }).join('\n') || 'Sin sesiones registradas.'}
 
 Reportes diarios:
@@ -227,7 +227,7 @@ Genera JSON con:
   "musclesWorked": ["grupo1", "grupo2"],
   "totalVolumeKg": number,
   "avgFatigue": number (promedio 1-10),
-  "avgNIT": number (promedio 1-10),
+  "avgRIR": number (promedio 0-5),
   "totalCalories": number,
   "prs": [{"exercise": "nombre", "weight": number, "isPR": boolean}],
   "weightProgression": "subiendo | estable | bajando | sin datos",
@@ -238,7 +238,7 @@ Genera JSON con:
 
   const content = await chatJSON(
     [{ role: 'user', content: prompt }],
-    { temperature: 0.3, maxTokens: 1024 }
+    { temperature: 0.3, maxTokens: 1024, model: 'coach_llama' }
   );
 
   const report = await prisma.weeklyReport.upsert({
