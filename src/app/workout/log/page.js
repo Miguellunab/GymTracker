@@ -14,7 +14,7 @@ const MUSCLE_GROUPS = [
 ];
 
 const WORKOUT_STEPS = ["muscle", "exercises", "cardio", "duration", "feeling", "summary"];
-const REST_STEPS = ["muscle", "rest-confirm"];
+const REST_STEPS = ["muscle", "cardio", "duration", "feeling", "summary"];
 
 export default function WorkoutLogPage() {
   return (
@@ -122,18 +122,12 @@ function WorkoutLogContent() {
         return true;
       case "summary":
         return !!aiResult;
-      case "rest-confirm":
-        return true;
       default:
         return false;
     }
   };
 
   const handleNext = async () => {
-    if (currentStep === "rest-confirm") {
-      await saveRestDay();
-      return;
-    }
     if (currentStep === "feeling") {
       // After feeling, trigger AI analysis then go to summary
       setStep(step + 1);
@@ -141,7 +135,11 @@ function WorkoutLogContent() {
       return;
     }
     if (currentStep === "summary") {
-      await saveWorkout();
+      if (isRestDay) {
+        await saveRestDay();
+      } else {
+        await saveWorkout();
+      }
       return;
     }
     setStep(step + 1);
@@ -151,11 +149,6 @@ function WorkoutLogContent() {
     if (step === 0) {
       router.back();
       return;
-    }
-    // If going back from rest-confirm, reset rest day state
-    if (currentStep === "rest-confirm") {
-      setIsRestDay(false);
-      setMuscleGroup("");
     }
     setStep(step - 1);
   };
@@ -179,12 +172,14 @@ function WorkoutLogContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           muscleGroup,
-          exercises: exercises.map((e) => ({
-            name: e.name,
-            weight: parseFloat(e.weight) || 0,
-            sets: parseInt(e.sets) || 1,
-            reps: parseInt(e.reps) || 1,
-          })),
+          exercises: isRestDay
+            ? []
+            : exercises.map((e) => ({
+                name: e.name,
+                weight: parseFloat(e.weight) || 0,
+                sets: parseInt(e.sets) || 1,
+                reps: parseInt(e.reps) || 1,
+              })),
           cardio: didCardio
             ? { type: cardioType, minutes: parseInt(cardioMinutes) || 0 }
             : null,
@@ -287,7 +282,7 @@ function WorkoutLogContent() {
   };
 
   const saveRestDay = async () => {
-    if (saving) return;
+    if (saving || !aiResult) return;
     setSaving(true);
     try {
       const res = await fetch("/api/workouts", {
@@ -296,9 +291,14 @@ function WorkoutLogContent() {
         body: JSON.stringify({
           muscleGroup: "Descanso",
           date: targetDate || undefined,
-          durationMinutes: 0,
-          totalCalories: 0,
-          didCardio: false,
+          durationMinutes: parseInt(durationMinutes) || (didCardio ? parseInt(cardioMinutes) || null : 0),
+          totalCalories: aiResult?.totalCalories ?? 0,
+          didCardio,
+          cardioType: didCardio ? cardioType : null,
+          cardioMinutes: didCardio ? parseInt(cardioMinutes) || null : null,
+          fatigueLevel: aiResult?.fatigueLevel ?? 1,
+          nitRating: aiResult?.nitRating ?? 1,
+          feeling: feeling || null,
           exercises: [],
         }),
       });
@@ -540,7 +540,14 @@ function WorkoutLogContent() {
             {/* ─── Step: Cardio ───────────────────────────── */}
             {currentStep === "cardio" && (
               <div className="space-y-4">
-                <h2 className="text-xl font-bold">Hiciste cardio?</h2>
+                <h2 className="text-xl font-bold">
+                  {isRestDay ? "Haras cardio hoy?" : "Hiciste cardio?"}
+                </h2>
+                {isRestDay && (
+                  <p className="text-sm text-zinc-500">
+                    Puedes registrar un dia de descanso total o un descanso activo con cardio.
+                  </p>
+                )}
 
                 <div className="flex gap-3">
                   <button
@@ -596,7 +603,9 @@ function WorkoutLogContent() {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold">Duracion total</h2>
                 <p className="text-sm text-zinc-500">
-                  Cuanto tiempo duro tu sesion completa? (aproximado)
+                  {isRestDay
+                    ? "Cuanto tiempo duro tu descanso activo o cardio?"
+                    : "Cuanto tiempo duro tu sesion completa? (aproximado)"}
                 </p>
                 <div>
                   <input
@@ -616,12 +625,16 @@ function WorkoutLogContent() {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold">Como te sentiste?</h2>
                 <p className="text-sm text-zinc-500">
-                  Escribe libremente. La AI genera tu NIT y fatiga.
+                  {isRestDay
+                    ? "Escribe libremente. La AI evaluara tu descanso o cardio suave."
+                    : "Escribe libremente. La AI genera tu NIT y fatiga."}
                 </p>
                 <textarea
                   value={feeling}
                   onChange={(e) => setFeeling(e.target.value)}
-                  placeholder="Ej: Me senti bien, subi peso en press banca. Un poco cansado de las piernas de ayer..."
+                  placeholder={isRestDay
+                    ? "Ej: Hice 35 min de caminadora suave. Me senti ligero y aproveche para recuperarme."
+                    : "Ej: Me senti bien, subi peso en press banca. Un poco cansado de las piernas de ayer..."}
                   rows={4}
                   className="input-dark resize-none"
                 />
@@ -673,7 +686,7 @@ function WorkoutLogContent() {
                     <div className="glass-card p-4 space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-500">Grupo</span>
-                        <span>{muscleGroup}</span>
+                        <span>{isRestDay && didCardio ? "Descanso activo" : muscleGroup}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-500">Duracion</span>
@@ -685,47 +698,28 @@ function WorkoutLogContent() {
                           <span>{cardioType} - {cardioMinutes} min</span>
                         </div>
                       )}
-                      <div className="border-t border-white/5 pt-2 mt-2 space-y-1.5">
-                        {exercises.map((ex, i) => {
-                          const normalized = aiResult.normalizedExercises?.find(
-                            (ne) => ne.original?.toLowerCase() === ex.name.trim().toLowerCase()
-                          );
-                          return (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span className="text-zinc-300">
-                                {normalized?.normalized || ex.name}
-                              </span>
-                              <span className="text-zinc-500 font-display">
-                                {ex.weight}kg {ex.sets}x{ex.reps}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {!isRestDay && exercises.length > 0 && (
+                        <div className="border-t border-white/5 pt-2 mt-2 space-y-1.5">
+                          {exercises.map((ex, i) => {
+                            const normalized = aiResult.normalizedExercises?.find(
+                              (ne) => ne.original?.toLowerCase() === ex.name.trim().toLowerCase()
+                            );
+                            return (
+                              <div key={i} className="flex justify-between text-sm">
+                                <span className="text-zinc-300">
+                                  {normalized?.normalized || ex.name}
+                                </span>
+                                <span className="text-zinc-500 font-display">
+                                  {ex.weight}kg {ex.sets}x{ex.reps}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : null}
-              </div>
-            )}
-
-            {/* ─── Step: Rest Day Confirm ─────────────────── */}
-            {currentStep === "rest-confirm" && (
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold">Dia de descanso</h2>
-
-                <div className="glass-card p-6 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-[#2196F3]/10 flex items-center justify-center mx-auto">
-                    <Moon className="w-8 h-8 text-[#2196F3]" />
-                  </div>
-                  <div>
-                    <p className="text-zinc-300 text-sm leading-relaxed">
-                      Se registrara hoy como dia de descanso.
-                    </p>
-                    <p className="text-zinc-500 text-xs mt-2">
-                      El descanso es parte del progreso. Tu cuerpo se recupera y crece.
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
           </motion.div>
@@ -746,10 +740,6 @@ function WorkoutLogContent() {
           ) : currentStep === "summary" ? (
             <>
               <Check className="w-4 h-4" /> Confirmar y guardar
-            </>
-          ) : currentStep === "rest-confirm" ? (
-            <>
-              <Moon className="w-4 h-4" /> Registrar descanso
             </>
           ) : (
             <>

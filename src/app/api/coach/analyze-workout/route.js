@@ -15,9 +15,12 @@ export async function POST(request) {
     });
     const userWeight = weightLog?.weight || 75;
 
-    const exerciseResolutions = await resolveExerciseEntries(prisma, exercises || [], { allowCreateCustom: false });
+    const safeExercises = Array.isArray(exercises) ? exercises : [];
+    const exerciseResolutions = safeExercises.length > 0
+      ? await resolveExerciseEntries(prisma, safeExercises, { allowCreateCustom: false })
+      : [];
     const needsClarification = exerciseResolutions
-      .map((resolution, index) => ({ resolution, exercise: exercises?.[index] }))
+      .map((resolution, index) => ({ resolution, exercise: safeExercises?.[index] }))
       .filter(({ resolution }) => resolution?.status === 'ambiguous');
 
     if (needsClarification.length > 0) {
@@ -31,7 +34,7 @@ export async function POST(request) {
       });
     }
 
-    const normalizedExercises = (exercises || []).map((exercise, index) => ({
+    const normalizedExercises = safeExercises.map((exercise, index) => ({
       ...exercise,
       name: exerciseResolutions[index]?.status === 'resolved'
         ? exerciseResolutions[index].canonicalName
@@ -70,7 +73,7 @@ Responde SOLO con JSON valido, sin markdown ni explicacion adicional:
 
     if (!Array.isArray(result.normalizedExercises)) {
       result.normalizedExercises = normalizedExercises.map((exercise, index) => ({
-        original: exercises?.[index]?.name || exercise.name,
+        original: safeExercises?.[index]?.name || exercise.name,
         normalized: exercise.name,
       }));
     }
