@@ -95,6 +95,10 @@ main {
   background: rgba(33, 150, 243, 0.08);
 }
 .day-pill.rest {
+  border: 1.5px solid #ff9800;
+  background: rgba(255, 152, 0, 0.08);
+}
+.day-pill.empty {
   border: 1.5px solid transparent;
 }
 

@@ -175,13 +175,14 @@ export default function HomeContent() {
             const sessionType = calendarData[dateStr]?.sessionType;
             const hasWorkout = !!calendarData[dateStr] && sessionType === "training";
             const isActiveRest = sessionType === "active-rest";
+            const isRestDay = sessionType === "rest";
             const isDayToday = isSameDay(day, new Date());
 
             return (
               <button
                 key={dateStr}
                 onClick={() => setSelectedDate(day)}
-                className={`day-pill ${isSelected ? "active" : hasWorkout ? "has-workout" : isActiveRest ? "active-rest" : "rest"}`}
+                className={`day-pill ${isSelected ? "active" : hasWorkout ? "has-workout" : isActiveRest ? "active-rest" : isRestDay ? "rest" : "empty"}`}
               >
                 <span className="text-[10px] font-medium opacity-60">
                   {format(day, "EEE", { locale: es }).slice(0, 2).toUpperCase()}

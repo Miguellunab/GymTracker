@@ -62,7 +62,7 @@ Instrucciones:
 4. Escribe un analisis breve (2-3 frases) sobre el rendimiento.
 5. Usa exactamente los nombres de ejercicios ya normalizados que recibes. No los cambies.
 
-Responde SOLO con JSON valido, sin markdown ni explicacion adicional:
+Responde SOLO con JSON valido, sin markdown, sin texto adicional y sin etiquetas como <think>:
 {"totalCalories": number, "rirScore": number, "fatigueLevel": number, "analysis": "string con analisis breve", "normalizedExercises": [{"original": "nombre original", "normalized": "nombre normalizado"}]}`;
 
     const result = await chatJSON(

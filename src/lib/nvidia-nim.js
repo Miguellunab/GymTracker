@@ -105,6 +105,7 @@ export async function chatJSON(messages, options = {}) {
 
   try {
     const cleaned = content
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();

@@ -13,6 +13,17 @@ const MUSCLE_GROUPS = [
   { value: "Brazos", label: "Brazos" },
 ];
 
+const CARDIO_SUGGESTIONS = [
+  "Caminadora",
+  "Bicicleta",
+  "Eliptica",
+  "Escaladora",
+  "Caminata",
+  "Trote",
+  "Spinning",
+  "Cuerda",
+];
+
 const WORKOUT_STEPS = ["muscle", "exercises", "cardio", "duration", "feeling", "summary"];
 const REST_STEPS = ["muscle", "cardio", "summary"];
 
@@ -51,6 +62,12 @@ function WorkoutLogContent() {
   const [cardioMinutes, setCardioMinutes] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [feeling, setFeeling] = useState("");
+
+  const filteredCardioSuggestions = CARDIO_SUGGESTIONS.filter((item) =>
+    !cardioType.trim()
+      ? true
+      : item.toLowerCase().includes(cardioType.trim().toLowerCase())
+  ).slice(0, 6);
 
   const STEPS = isRestDay ? REST_STEPS : WORKOUT_STEPS;
   const currentStep = STEPS[step];
@@ -163,6 +180,13 @@ function WorkoutLogContent() {
       return;
     }
     setStep(step + 1);
+  };
+
+  const handleEnterNext = async (event, enabled = true) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (!enabled || saving || analyzing || !canProceed()) return;
+    await handleNext();
   };
 
   const handleBack = () => {
@@ -486,6 +510,12 @@ function WorkoutLogContent() {
                         type="text"
                         value={ex.name}
                         onChange={(e) => updateExercise(i, "name", e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && exerciseSuggestions[i]?.length > 0) {
+                            e.preventDefault();
+                            chooseSuggestedExercise(i, exerciseSuggestions[i][0].canonicalName);
+                          }
+                        }}
                         placeholder="Ej: Press banca, sentadilla, curl..."
                         className="input-dark"
                       />
@@ -602,9 +632,32 @@ function WorkoutLogContent() {
                       type="text"
                       value={cardioType}
                       onChange={(e) => setCardioType(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        if (filteredCardioSuggestions.length > 0) {
+                          setCardioType(filteredCardioSuggestions[0]);
+                        }
+                      }}
                       placeholder="Tipo: caminadora, eliptica, bici..."
                       className="input-dark"
                     />
+                    <div className="flex flex-wrap gap-2">
+                      {filteredCardioSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setCardioType(suggestion)}
+                          className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
+                            cardioType === suggestion
+                              ? "border-[#00C853]/40 bg-[#00C853]/10 text-white"
+                              : "border-white/10 text-zinc-300 hover:bg-white/5"
+                          }`}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                     <div>
                       <label className="text-xs text-zinc-500 mb-1 block">
                         Duracion (minutos)
@@ -613,6 +666,7 @@ function WorkoutLogContent() {
                         type="number"
                         value={cardioMinutes}
                         onChange={(e) => setCardioMinutes(e.target.value)}
+                        onKeyDown={(e) => handleEnterNext(e, !!cardioType.trim() && !!cardioMinutes)}
                         placeholder="20"
                         className="input-dark"
                       />
@@ -636,6 +690,7 @@ function WorkoutLogContent() {
                     type="number"
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(e.target.value)}
+                    onKeyDown={(e) => handleEnterNext(e)}
                     placeholder="60"
                     className="input-dark text-center text-2xl font-display"
                   />
@@ -656,6 +711,7 @@ function WorkoutLogContent() {
                 <textarea
                   value={feeling}
                   onChange={(e) => setFeeling(e.target.value)}
+                  onKeyDown={(e) => handleEnterNext(e, !e.shiftKey)}
                   placeholder={isRestDay
                     ? "Ej: Hice 35 min de caminadora suave. Me senti ligero y aproveche para recuperarme."
                     : "Ej: Me senti bien, subi peso en press banca. Un poco cansado de las piernas de ayer..."}
