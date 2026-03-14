@@ -1,13 +1,15 @@
 import { chatJSON } from '@/lib/nvidia-nim';
 import prisma from '@/lib/prisma';
 import { ensureExerciseCatalog, resolveExerciseEntries } from '@/lib/exercise-catalog';
+import { estimateWorkoutAnalysis } from '@/lib/workout-analysis';
 
 export const runtime = 'nodejs';
 
 export async function POST(request) {
+  let body = {};
   try {
     await ensureExerciseCatalog(prisma);
-    const body = await request.json();
+    body = await request.json();
     const { muscleGroup, exercises, cardio, feeling, durationMinutes } = body;
 
     const weightLog = await prisma.weightLog.findFirst({
@@ -84,12 +86,21 @@ Responde SOLO con JSON valido, sin markdown, sin texto adicional y sin etiquetas
 
   } catch (error) {
     console.error('Analyze workout error:', error?.message || error);
-    return Response.json({
-      totalCalories: 300,
-      rirScore: 2,
-      fatigueLevel: 5,
-      analysis: 'No se pudo conectar con AI. Estimaciones por defecto.',
-      normalizedExercises: []
+    const { muscleGroup, exercises, cardio, feeling, durationMinutes } = body || {};
+
+    const weightLog = await prisma.weightLog.findFirst({
+      orderBy: { date: 'desc' }
+    }).catch(() => null);
+
+    const fallback = estimateWorkoutAnalysis({
+      muscleGroup,
+      exercises,
+      cardio,
+      feeling,
+      durationMinutes,
+      userWeight: weightLog?.weight || 75,
     });
+
+    return Response.json(fallback);
   }
 }

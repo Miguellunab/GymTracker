@@ -56,6 +56,10 @@ function buildRequestBody(config, messages, options) {
     stream: false,
   };
 
+  if (options.expectJSON) {
+    body.response_format = { type: 'json_object' };
+  }
+
   if (config.provider === 'sambanova') {
     body.stream = false;
   }
@@ -63,17 +67,57 @@ function buildRequestBody(config, messages, options) {
   return body;
 }
 
+function extractFirstJSONObject(text) {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') depth += 1;
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function chat(messages, options = {}) {
   const {
     temperature = 0.6,
     maxTokens = 4096,
     model = 'coach_llama',
+    expectJSON = false,
   } = options;
 
   const config = getModelConfig(model);
   const apiKey = getApiKey(config);
   const apiUrl = getApiUrl(config.provider);
-  const body = buildRequestBody(config, messages, { temperature, maxTokens });
+  const body = buildRequestBody(config, messages, { temperature, maxTokens, expectJSON });
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -87,7 +131,12 @@ export async function chat(messages, options = {}) {
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`AI Error (${config.label}):`, response.status, errorText);
-    throw new Error(`AI API error: ${response.status}`);
+    const error = new Error(`AI API error: ${response.status}`);
+    error.status = response.status;
+    error.provider = config.provider;
+    error.model = config.modelId;
+    error.body = errorText;
+    throw error;
   }
 
   const data = await response.json();
@@ -101,7 +150,22 @@ export async function chat(messages, options = {}) {
 }
 
 export async function chatJSON(messages, options = {}) {
-  const content = await chat(messages, options);
+  let content = '';
+
+  try {
+    content = await chat(messages, { ...options, expectJSON: true });
+  } catch (error) {
+    const shouldRetryAsText =
+      error?.status === 400 &&
+      options?.model &&
+      getModelConfig(options.model).provider === 'sambanova';
+
+    if (shouldRetryAsText) {
+      content = await chat(messages, { ...options, expectJSON: false });
+    } else {
+      throw error;
+    }
+  }
 
   try {
     const cleaned = content
@@ -109,8 +173,36 @@ export async function chatJSON(messages, options = {}) {
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
-    return JSON.parse(cleaned);
+
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      const extracted = extractFirstJSONObject(cleaned);
+      if (!extracted) {
+        throw new Error('No se encontro JSON en la respuesta');
+      }
+      return JSON.parse(extracted);
+    }
   } catch (e) {
+    const fallbackModel = options?.model === 'analysis' ? 'coach_llama' : null;
+
+    if (fallbackModel) {
+      const fallbackContent = await chat(messages, {
+        ...options,
+        model: fallbackModel,
+        expectJSON: true,
+      });
+
+      try {
+        return JSON.parse(fallbackContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+      } catch {
+        const extracted = extractFirstJSONObject(fallbackContent);
+        if (extracted) {
+          return JSON.parse(extracted);
+        }
+      }
+    }
+
     console.error('Error parseando JSON:', content.slice(0, 300));
     throw new Error('Respuesta no es JSON valido');
   }
