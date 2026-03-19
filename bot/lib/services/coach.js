@@ -147,7 +147,7 @@ INSTRUCCIONES:
 4. Extrae duración total en minutos
 5. Extrae cómo se sintió (texto libre)
 6. Genera RIR global estimado (0-5) y nivel de fatiga (1-10) basado en lo descrito
-7. Estima calorías totales
+7. Estima calorías totales PRESTANDO ATENCIÓN AL TIPO DE CARDIO (ej: caminadora inclinada quema más que plana, nunca pongas 0 a menos que sea un día totalmente de descanso inactivo).
 8. Si el usuario describe sensaciones mixtas entre ejercicios, analiza toda la sesion completa antes de decidir. No generalices solo por la primera frase.
 9. Puedes tomarte el tiempo necesario para pensar, pero responde solo con el JSON final.
 

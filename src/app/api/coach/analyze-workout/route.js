@@ -58,7 +58,7 @@ Entrenamiento realizado:
 - Como se sintio: "${feeling || 'sin comentario'}"
 
 Instrucciones:
-1. Calcula calorias totales quemadas (pesas + cardio si hay). Pesas: 3-8 kcal/min segun intensidad. Cardio: 6-12 kcal/min segun tipo.
+1. Calcula calorias totales quemadas (pesas + cardio si hay). Pesas: 3-8 kcal/min segun intensidad. Cardio: 6-12 kcal/min segun tipo. PRESTA ESPECIAL ATENCIÓN AL TIPO DE CARDIO (ej: caminadora inclinada quema más que caminadora plana, no pongas 0 a menos que no haya entrenamiento en absoluto).
 2. Genera un RIR global estimado para la sesion de 0-5, donde 0 significa que termino muy cerca del fallo en la mayor parte del trabajo efectivo y 5 significa que dejo muchas repeticiones en reserva.
 3. Genera un nivel de fatiga de 1-10 basado en el feeling del usuario y la carga de trabajo.
 4. Escribe un analisis breve (2-3 frases) sobre el rendimiento.
