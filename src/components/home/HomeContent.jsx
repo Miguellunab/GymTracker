@@ -175,7 +175,7 @@ export default function HomeContent() {
             const sessionType = calendarData[dateStr]?.sessionType;
             const hasWorkout = !!calendarData[dateStr] && sessionType === "training";
             const isActiveRest = sessionType === "active-rest";
-            const isRestDay = sessionType === "rest";
+            const isRestDay = !hasWorkout && !isActiveRest;
             const isDayToday = isSameDay(day, new Date());
 
             return (

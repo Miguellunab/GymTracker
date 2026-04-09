@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { eachDayOfInterval, format, parseISO } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,9 @@ export async function GET(request) {
       orderBy: { date: 'asc' }
     });
 
-    // Transform to calendar-friendly format: { "YYYY-MM-DD": { ...data } }
     const calendarData = {};
+    
+    // First, map all existing sessions
     sessions.forEach(s => {
       const d = new Date(s.date).toISOString().split('T')[0];
       const sessionType = s.muscleGroup === 'Descanso'
@@ -50,6 +52,32 @@ export async function GET(request) {
         sessionType
       };
     });
+
+    // Then, for any day in the requested interval that lacks data, mark as "rest" by default
+    if (startDate && endDate) {
+      const days = eachDayOfInterval({
+        start: parseISO(startDate),
+        end: parseISO(endDate)
+      });
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      days.forEach(day => {
+        const d = format(day, 'yyyy-MM-dd');
+        if (!calendarData[d] && d <= todayStr) {
+          calendarData[d] = {
+            id: null,
+            muscleGroup: 'Descanso',
+            calories: 0,
+            duration: 0,
+            fatigue: 0,
+            rir: 0,
+            didCardio: false,
+            sessionType: 'rest' // Unregistered days default to rest automatically
+          };
+        }
+      });
+    }
 
     return NextResponse.json(calendarData);
   } catch (error) {
