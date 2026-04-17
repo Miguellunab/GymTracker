@@ -28,8 +28,6 @@ export default function HomeContent() {
   const [daySession, setDaySession] = useState(null);
   const [coachTip, setCoachTip] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [fabOpen, setFabOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const hasMounted = useRef(false);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -109,23 +107,6 @@ export default function HomeContent() {
   const goToPreviousWeek = () => setWeekStart(addDays(weekStart, -7));
   const goToNextWeek = () => setWeekStart(addDays(weekStart, 7));
 
-  const handleDeleteWorkout = async () => {
-    if (!daySession?.id) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/workouts?id=${daySession.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setDaySession(null);
-        setFabOpen(false);
-        fetchCalendar();
-      }
-    } catch (e) {
-      console.error("Delete error:", e);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const isToday = isSameDay(selectedDate, new Date());
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const isActiveRestDay = daySession?.muscleGroup === "Descanso" && daySession?.didCardio;
@@ -135,6 +116,17 @@ export default function HomeContent() {
     if (session.muscleGroup === "Descanso" && session.didCardio) return "Descanso activo";
     return session.muscleGroup || "Descanso";
   };
+
+  // Calculate Recovery Data
+  const weeklyWorkouts = weekDays.map(day => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    return calendarData[dateStr];
+  }).filter(Boolean);
+  
+  const trainingDaysCount = weeklyWorkouts.filter(w => w.sessionType === "training").length;
+  const activeRestDaysCount = weeklyWorkouts.filter(w => w.sessionType === "active-rest").length;
+  const totalRestDaysCount = weeklyWorkouts.filter(w => w.sessionType === "rest").length;
+  const avgFatigue = weeklyWorkouts.filter(w => w.fatigue > 0).reduce((acc, curr, _, arr) => acc + curr.fatigue / arr.length, 0).toFixed(1);
 
   return (
     <div className="page-top pb-8 space-y-6" suppressHydrationWarning>
@@ -196,6 +188,28 @@ export default function HomeContent() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Recovery Dashboard */}
+      <div className="glass-card p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-[#2196F3]" />
+          Dashboard de Recuperacion (Semana)
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-xs text-zinc-400">Dias de Entrenamiento</p>
+            <p className="text-xl font-bold font-display text-white">{trainingDaysCount}</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-xs text-zinc-400">Descanso Activo / Total</p>
+            <p className="text-xl font-bold font-display text-white">{activeRestDaysCount} <span className="text-sm text-zinc-500 font-normal">/ {totalRestDaysCount}</span></p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3 col-span-2 flex justify-between items-center">
+            <p className="text-xs text-zinc-400">Fatiga Promedio</p>
+            <p className="text-lg font-bold font-display text-[#FF9800]">{avgFatigue} <span className="text-xs font-normal text-zinc-500">/10</span></p>
+          </div>
         </div>
       </div>
 
@@ -320,86 +334,6 @@ export default function HomeContent() {
 
       {/* AI Coach Card */}
       <AICoachTrigger />
-
-      {/* FAB Overlay (blur backdrop) */}
-      <AnimatePresence>
-        {fabOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-            onClick={() => setFabOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* FAB Menu Items */}
-      <AnimatePresence>
-        {fabOpen && (
-          <>
-            {/* Registrar option */}
-            <motion.button
-              initial={{ opacity: 0, y: 20, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.8 }}
-              transition={{ duration: 0.2, delay: 0.05 }}
-              onClick={() => {
-                setFabOpen(false);
-                router.push(`/workout/log?date=${format(selectedDate, "yyyy-MM-dd")}`);
-              }}
-              className="fixed z-50 flex items-center gap-3 rounded-full pl-4 pr-5 py-3 font-semibold shadow-xl bg-[#00C853] text-black"
-              style={{
-                bottom: `calc(${daySession ? "14rem" : "10rem"} + env(safe-area-inset-bottom))`,
-                right: "1rem"
-              }}
-            >
-              <Dumbbell className="w-4 h-4" />
-              <span className="text-sm">Registrar</span>
-            </motion.button>
-
-            {/* Eliminar option (only if there's a workout) */}
-            {daySession && (
-              <motion.button
-                initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.8 }}
-                transition={{ duration: 0.2, delay: 0.1 }}
-                onClick={handleDeleteWorkout}
-                disabled={deleting}
-                className="fixed z-50 flex items-center gap-3 rounded-full pl-4 pr-5 py-3 font-semibold shadow-xl bg-red-500/90 text-white disabled:opacity-50"
-                style={{
-                  bottom: `calc(10rem + env(safe-area-inset-bottom))`,
-                  right: "1rem"
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span className="text-sm">{deleting ? "Eliminando..." : "Eliminar"}</span>
-              </motion.button>
-            )}
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* FAB Button (+ icon, rotates to X when open) */}
-      <motion.button
-        onClick={() => setFabOpen(!fabOpen)}
-        className="fixed z-50 flex items-center justify-center w-14 h-14 rounded-full shadow-xl"
-        style={{
-          background: fabOpen ? "#333" : "var(--accent-green)",
-          bottom: `calc(5.5rem + env(safe-area-inset-bottom))`,
-          right: "1rem",
-        }}
-        whileTap={{ scale: 0.9 }}
-      >
-        <motion.div
-          animate={{ rotate: fabOpen ? 45 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <Plus className="w-6 h-6" style={{ color: fabOpen ? "#fff" : "#000" }} />
-        </motion.div>
-      </motion.button>
     </div>
   );
 }
